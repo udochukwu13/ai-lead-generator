@@ -5,7 +5,7 @@ import json
 import time
 import re
 import pandas as pd
-from generator import generate_outreach_email, generate_followup_email
+from generator import generate_outreach_email, generate_followup_email, send_outreach_email
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -145,16 +145,17 @@ else:
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract insights, find emails, generate initial & follow-up outreach, and export your pipeline.")
+    st.markdown("Extract insights, find emails, generate and send outreach via Resend, and export your pipeline.")
 
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
+    resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
 
     tab1, tab2, tab3 = st.tabs(["📝 Manual Lead Entry & AI Outreach", "🌍 Live Google Maps Scraper", "📂 Saved Leads History"])
 
     with tab1:
-        st.subheader("Manual Lead Entry & AI Outreach Generator")
+        st.subheader("Manual Lead Entry, AI Outreach & Direct Sending")
         col1, col2 = st.columns(2)
         with col1:
             company_name = st.text_input("Company Name", "Lagos Premier Logistics")
@@ -181,8 +182,8 @@ else:
                                 location=location,
                                 api_key=openai_key
                             )
-                            st.subheader("Initial Cold Email Preview")
-                            st.code(email_draft, language="markdown")
+                            st.session_state["generated_email"] = email_draft
+                            st.session_state["email_subject"] = f"Partnership Proposal: Scaling {company_name}"
                         except Exception as e:
                             st.error(f"An error occurred: {e}")
 
@@ -198,10 +199,32 @@ else:
                                 industry=industry,
                                 api_key=openai_key
                             )
-                            st.subheader("AI Follow-Up Email Preview")
-                            st.code(followup_draft, language="markdown")
+                            st.session_state["generated_email"] = followup_draft
+                            st.session_state["email_subject"] = f"Quick Follow-Up regarding {company_name}"
                         except Exception as e:
                             st.error(f"An error occurred: {e}")
+
+        # Display and Send Generated Email Section
+        if "generated_email" in st.session_state and st.session_state["generated_email"]:
+            st.markdown("---")
+            st.subheader("📤 Email Preview & Direct Dispatch")
+            
+            email_subject_input = st.text_input("Email Subject Line", value=st.session_state.get("email_subject", ""))
+            edited_email_body = st.text_area("Email Body (Editable)", value=st.session_state["generated_email"], height=250)
+            target_recipient = st.text_input("Recipient Email Address", placeholder="e.g. contact@company.com")
+
+            if st.button("🚀 Send Email Now via Resend"):
+                if not resend_key:
+                    st.error("Please provide your Resend API Key in the sidebar.")
+                elif not target_recipient or "@" not in target_recipient:
+                    st.warning("Please enter a valid recipient email address.")
+                else:
+                    with st.spinner("Sending email via Resend..."):
+                        res = send_outreach_email(target_recipient, email_subject_input, edited_email_body, resend_key)
+                        if res.get("success"):
+                            st.success(f"Email successfully sent! Message ID: {res.get('id')}")
+                        else:
+                            st.error(f"Failed to send email: {res.get('error')}")
 
     with tab2:
         st.subheader("Scrape Live Businesses & Find Emails")

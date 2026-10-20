@@ -1,5 +1,6 @@
 import requests
 import json
+import resend
 
 def generate_outreach_email(company_name, industry, rating, reviews_count, location, api_key):
     url = "https://api.openai.com/v1/chat/completions"
@@ -47,3 +48,17 @@ def generate_followup_email(company_name, industry, api_key):
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     res_json = response.json()
     return res_json["choices"][0]["message"]["content"]
+
+def send_outreach_email(to_email, subject, body, api_key):
+    resend.api_key = api_key
+    params = {
+        "from": "JEdge Connect <onboarding@resend.dev>",
+        "to": [to_email],
+        "subject": subject,
+        "html": f"<div style='font-family: Arial, sans-serif;'>{body.replace(chr(10), '<br>')}</div>",
+    }
+    try:
+        email_response = resend.Emails.send(params)
+        return {"success": True, "id": email_response.get("id")}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
