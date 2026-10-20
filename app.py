@@ -73,6 +73,7 @@ def save_lead_to_firestore(user_email, lead_data, id_token):
             "phone": {"stringValue": str(lead_data.get("phone", "N/A"))},
             "website": {"stringValue": str(lead_data.get("website", "N/A"))},
             "email": {"stringValue": str(lead_data.get("email", "N/A"))},
+            "status": {"stringValue": "New Lead"},
             "timestamp": {"stringValue": time.strftime("%Y-%m-%d %H:%M:%S")}
         }
     }
@@ -145,14 +146,19 @@ else:
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract insights, find emails, generate and send outreach via Resend, and export your pipeline.")
+    st.markdown("Extract insights, find emails, manage your sales pipeline, and execute direct outreach.")
 
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
     resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
 
-    tab1, tab2, tab3 = st.tabs(["📝 Manual Lead Entry & AI Outreach", "🌍 Live Google Maps Scraper", "📂 Saved Leads History"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📝 Manual Outreach", 
+        "🌍 Live Google Maps Scraper", 
+        "📊 Sales Pipeline Kanban", 
+        "📂 Saved History & Export"
+    ])
 
     with tab1:
         st.subheader("Manual Lead Entry, AI Outreach & Direct Sending")
@@ -204,7 +210,6 @@ else:
                         except Exception as e:
                             st.error(f"An error occurred: {e}")
 
-        # Display and Send Generated Email Section
         if "generated_email" in st.session_state and st.session_state["generated_email"]:
             st.markdown("---")
             st.subheader("📤 Email Preview & Direct Dispatch")
@@ -338,8 +343,83 @@ else:
                         st.error(f"Scraping failed: {e}")
 
     with tab3:
-        st.subheader("Your Saved Cloud Leads")
-        st.markdown("Review all leads saved to your Firebase Firestore account history.")
+        st.subheader("📊 Sales Pipeline Kanban Board")
+        st.markdown("Track your prospecting progress across different pipeline stages.")
+        
+        if st.button("🔄 Refresh Kanban Board"):
+            st.rerun()
+
+        try:
+            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
+            response = requests.get(firestore_url, headers=headers)
+            
+            if response.status_code == 200:
+                documents = response.json().get("documents", [])
+                user_leads = []
+                
+                for doc in documents:
+                    fields = doc.get("fields", {})
+                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                        doc_path = doc.get("name", "") # Full resource name for updating
+                        user_leads.append({
+                            "id": doc_path.split("/")[-1],
+                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
+                            "Category": fields.get("category", {}).get("stringValue", "N/A"),
+                            "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
+                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
+                            "Status": fields.get("status", {}).get("stringValue", "New Lead")
+                        })
+                
+                if user_leads:
+                    stages = ["New Lead", "Contacted", "Meeting Booked", "Converted"]
+                    cols = st.columns(len(stages))
+                    
+                    for idx, stage in enumerate(stages):
+                        with cols[idx]:
+                            st.markdown(f"### {stage}")
+                            stage_leads = [l for l in user_leads if l["Status"] == stage]
+                            st.caption(f"{len(stage_leads)} leads")
+                            
+                            for lead in stage_leads:
+                                with st.container(border=True):
+                                    st.markdown(f"**{lead['Company']}**")
+                                    st.text(f"📞 {lead['Phone']}")
+                                    st.text(f"✉️ {lead['Email']}")
+                                    
+                                    # Quick status switcher
+                                    new_status = st.selectbox(
+                                                "Move to:", 
+                                                stages, 
+                                                index=stages.index(stage), 
+                                                key=f"status_{lead['id']}"
+                                    )
+                                    
+                                    if new_status != stage:
+                                        # Update status in Firestore via REST PATCH
+                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
+                                        patch_payload = {
+                                            "fields": {
+                                                "status": {"stringValue": new_status}
+                                            }
+                                        }
+                                        patch_res = requests.patch(patch_url, headers=headers, json=patch_payload)
+                                        if patch_res.status_code == 200:
+                                            st.success(f"Moved to {new_status}!")
+                                            time.sleep(0.5)
+                                            st.rerun()
+                                        else:
+                                            st.error("Failed to update status.")
+                else:
+                    st.info("No saved leads found in your pipeline yet. Scrape some leads first!")
+            else:
+                st.error("Failed to fetch pipeline from Firestore.")
+        except Exception as e:
+            st.error(f"Error loading Kanban board: {e}")
+
+    with tab4:
+        st.subheader("📂 Saved Cloud Leads & History")
+        st.markdown("Review all leads saved to your Firebase Firestore account history and export them.")
         
         if st.button("🔄 Refresh History"):
             try:
@@ -363,6 +443,7 @@ else:
                                 "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
                                 "Website": fields.get("website", {}).get("stringValue", "N/A"),
                                 "Email": fields.get("email", {}).get("stringValue", "N/A"),
+                                "Status": fields.get("status", {}).get("stringValue", "New Lead"),
                                 "Saved At": fields.get("timestamp", {}).get("stringValue", "N/A")
                             })
                     
