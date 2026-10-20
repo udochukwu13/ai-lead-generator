@@ -38,14 +38,11 @@ def sign_in(email, password):
     return response.json()
 
 def save_lead_to_firestore(user_email, lead_data, id_token):
-    """Saves a scraped lead to Firebase Firestore using REST API"""
     url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {id_token}"
     }
-    
-    # Format data for Firestore REST API structure
     firestore_payload = {
         "fields": {
             "user": {"stringValue": user_email},
@@ -128,14 +125,12 @@ else:
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract firmographic insights, filter by your ICP, generate custom emails, and export your pipeline.")
+    st.markdown("Extract insights, engage via WhatsApp or phone, generate custom emails, and export your pipeline.")
 
-    # Sidebar API Configurations
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
 
-    # App Navigation Tabs
     tab1, tab2, tab3 = st.tabs(["📝 Manual Lead Entry", "🌍 Live Google Maps Scraper", "📂 Saved Leads History"])
 
     with tab1:
@@ -171,7 +166,7 @@ else:
 
     with tab2:
         st.subheader("Scrape Live Businesses from Google Maps")
-        st.markdown("Pull real businesses, export to CSV, and save them to your secure cloud account.")
+        st.markdown("Pull real businesses, contact them instantly via WhatsApp/Call, and save to cloud history.")
         
         search_query = st.text_input("Search Query (e.g., Hotels, Web Designers, Dental Clinics)", "Hotels", key="map_search_query")
         search_location = st.text_input("Search Location", "Abuja, Nigeria", key="map_search_location")
@@ -216,7 +211,6 @@ else:
                                 if items:
                                     st.success(f"Successfully scraped {len(items)} live leads!")
                                     
-                                    # Process and save each lead to Firestore
                                     clean_leads = []
                                     for item in items:
                                         lead_dict = {
@@ -231,11 +225,9 @@ else:
                                         clean_leads.append(lead_dict)
                                         save_lead_to_firestore(st.session_state["user"], lead_dict, st.session_state["idToken"])
                                     
-                                    # Convert to Pandas DataFrame for display & CSV export
                                     df = pd.DataFrame(clean_leads)
                                     st.dataframe(df)
                                     
-                                    # CSV Export Button
                                     csv_data = df.to_csv(index=False).encode('utf-8')
                                     st.download_button(
                                         label="📥 Download Scraped Leads as CSV",
@@ -244,12 +236,27 @@ else:
                                         mime="text/csv"
                                     )
                                     
-                                    # Detailed View
+                                    # Detailed View with Clickable WhatsApp & Call Links
                                     for idx, item in enumerate(items, 1):
                                         st.markdown(f"### {idx}. {item.get('title', 'N/A')}")
                                         st.write(f"**Category:** {item.get('categoryName', 'N/A')} | **Rating:** {item.get('totalScore', 'N/A')} ⭐ ({item.get('reviewsCount', 0)} reviews)")
                                         st.write(f"**Address:** {item.get('address', 'N/A')}")
-                                        st.write(f"**Phone:** {item.get('phone', 'N/A')} | **Website:** {item.get('website', 'N/A')}")
+                                        
+                                        phone = item.get('phone', 'N/A')
+                                        website = item.get('website', 'N/A')
+                                        
+                                        if phone != 'N/A':
+                                            # Clean phone number for links (remove spaces, dashes)
+                                            clean_phone = ''.join(c for c in phone if c.isdigit() or c == '+')
+                                            st.markdown(f"**Phone:** [{phone}](tel:{clean_phone}) | 💬 [Chat on WhatsApp](https://wa.me/{clean_phone.replace('+', '')})")
+                                        else:
+                                            st.write("**Phone:** N/A")
+                                            
+                                        if website != 'N/A':
+                                            st.write(f"**Website:** [{website}]({website})")
+                                        else:
+                                            st.write("**Website:** N/A")
+                                            
                                         st.markdown("---")
                                 else:
                                     st.warning("No leads found for this query/location.")
@@ -277,7 +284,6 @@ else:
                     
                     for doc in documents:
                         fields = doc.get("fields", {})
-                        # Filter by currently logged in user
                         if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
                             user_leads.append({
                                 "Company": fields.get("title", {}).get("stringValue", "N/A"),
@@ -294,7 +300,6 @@ else:
                         history_df = pd.DataFrame(user_leads)
                         st.dataframe(history_df)
                         
-                        # Export History to CSV
                         history_csv = history_df.to_csv(index=False).encode('utf-8')
                         st.download_button(
                             label="📥 Download History CSV",
@@ -303,7 +308,7 @@ else:
                             mime="text/csv"
                         )
                     else:
-                        st.info("No saved leads found in your cloud history yet. Try scraping some leads!")
+                        st.info("No saved leads found in your cloud history yet.")
                 else:
                     st.error("Failed to fetch history from Firestore.")
             except Exception as e:
