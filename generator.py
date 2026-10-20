@@ -23,7 +23,7 @@ def generate_outreach_email(company_name, industry, rating, reviews_count, locat
     
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     res_json = response.json()
-    return res_json["choices"]["message"]["content"]
+    return res_json["choices"][0]["message"]["content"]
 
 def generate_followup_email(company_name, industry, api_key):
     url = "https://api.openai.com/v1/chat/completions"
@@ -46,4 +46,4 @@ def generate_followup_email(company_name, industry, api_key):
     
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     res_json = response.json()
-    return res_json["choices"]["message"]["content"]
+    return res_json["choices"][0]["message"]["content"]
