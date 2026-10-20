@@ -6,7 +6,7 @@ import time
 import re
 import pandas as pd
 from datetime import date
-from generator import generate_outreach_email, generate_followup_email, send_outreach_email
+from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -149,16 +149,17 @@ else:
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract insights, manage pipelines, track task reminders, and execute direct outreach.")
+    st.markdown("Extract insights, audit SEO health, manage pipelines, track tasks, and execute direct outreach.")
 
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
     resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📝 Manual Outreach", 
         "🌍 Live Maps Scraper", 
+        "🔍 SEO & Health Audit",
         "📊 Kanban Pipeline", 
         "⏰ Reminders & Tasks",
         "📂 Saved History"
@@ -190,6 +191,7 @@ else:
                                 rating=rating,
                                 reviews_count=reviews_count,
                                 location=location,
+                                audit_score=85,
                                 api_key=openai_key
                             )
                             st.session_state["generated_email"] = email_draft
@@ -347,6 +349,59 @@ else:
                         st.error(f"Scraping failed: {e}")
 
     with tab3:
+        st.subheader("🔍 Website SEO & Health Checker")
+        st.markdown("Run a live audit on any business website URL to analyze security, load speed, and SEO readiness.")
+
+        audit_url = st.text_input("Enter Website URL to Audit", "https://example.com", key="audit_url_input")
+
+        if st.button("Run SEO Health Audit ⚡"):
+            if not audit_url or audit_url == "https://example.com":
+                st.warning("Please enter a valid website URL.")
+            else:
+                with st.spinner("Analyzing website performance and SEO tags..."):
+                    audit_result = analyze_website_health(audit_url)
+                    st.session_state["last_audit"] = audit_result
+                    st.session_state["audited_url"] = audit_url
+
+        if "last_audit" in st.session_state:
+            res = st.session_state["last_audit"]
+            st.markdown("---")
+            st.subheader(f"📊 Audit Report for: `{st.session_state.get('audited_url', '')}`")
+            
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                st.metric(label="SEO Health Score", value=f"{res['score']}/100")
+            with col_b:
+                st.metric(label="Server Status", value=res['status'])
+            with col_c:
+                st.metric(label="Load Speed", value=res['load_time'])
+
+            st.markdown("#### Detailed Checklist:")
+            st.write(f"🔒 **HTTPS Security (SSL):** {'✅ Secure' if res['https'] else '❌ Missing HTTPS'}")
+            st.write(f"🏷️ **SEO Title Tag:** {'✅ Present' if res['has_title'] else '❌ Missing Title Tag'}")
+            st.write(f"📝 **Meta Description:** {'✅ Present' if res['has_description'] else '❌ Missing Meta Description'}")
+
+            if st.button("✨ Generate Custom Audit-Backed Pitch"):
+                if not openai_key:
+                    st.error("Please provide your OpenAI API key in the sidebar.")
+                else:
+                    with st.spinner("Writing hyper-targeted audit pitch..."):
+                        try:
+                            audit_pitch = generate_outreach_email(
+                                company_name="Target Business",
+                                industry="Local Business",
+                                rating=4.5,
+                                reviews_count=50,
+                                location="Local Area",
+                                audit_score=res['score'],
+                                api_key=openai_key
+                            )
+                            st.subheader("Audit-Backed Email Draft")
+                            st.code(audit_pitch, language="markdown")
+                        except Exception as e:
+                            st.error(f"Error generating pitch: {e}")
+
+    with tab4:
         st.subheader("📊 Sales Pipeline Kanban Board")
         st.markdown("Track your prospecting progress across different pipeline stages.")
         
@@ -419,7 +474,7 @@ else:
         except Exception as e:
             st.error(f"Error loading Kanban board: {e}")
 
-    with tab4:
+    with tab5:
         st.subheader("⏰ Reminders & Task Manager")
         st.markdown("Set and track follow-up dates and task notes for your leads.")
 
@@ -482,7 +537,7 @@ else:
         except Exception as e:
             st.error(f"Error loading task manager: {e}")
 
-    with tab5:
+    with tab6:
         st.subheader("📂 Saved Cloud Leads & History")
         st.markdown("Review all leads saved to your Firebase Firestore account history and export them.")
         
