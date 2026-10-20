@@ -1,0 +1,13 @@
+company_name,category,location,rating,reviews_count,website_summary,recipient_email,inferred_pain_point,email_subject,email_body
+Lagos Premier Logistics,Courier & Delivery,"Lagos, Nigeria",4.7,85,Established delivery service. Customers complain about manual tracking updates.,test2@example.com,Manual tracking updates causing customer dissatisfaction and potential delays.,Enhancing Customer Experience for Lagos Premier Logistics,"Hi [Recipient's Name],
+
+I noticed that Lagos Premier Logistics has a solid 4.7 rating but that customers are frustrated with manual tracking updates. Imagine automating those inquiries in under 2 minutes with our AI agents! 
+
+We specialize in helping courier services like yours streamline lead responses and enhance customer satisfaction, allowing you to focus more on scaling your operations. 
+
+Could we schedule a quick call to discuss how we can help transform your customer interactions?
+
+Best, 
+[Your Name] 
+[Your Company] 
+[Your Contact Information]"
