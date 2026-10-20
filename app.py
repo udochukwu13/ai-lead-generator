@@ -5,6 +5,7 @@ import json
 import time
 import re
 import pandas as pd
+from datetime import date
 from generator import generate_outreach_email, generate_followup_email, send_outreach_email
 
 # ==========================================
@@ -74,6 +75,8 @@ def save_lead_to_firestore(user_email, lead_data, id_token):
             "website": {"stringValue": str(lead_data.get("website", "N/A"))},
             "email": {"stringValue": str(lead_data.get("email", "N/A"))},
             "status": {"stringValue": "New Lead"},
+            "reminder_date": {"stringValue": str(date.today())},
+            "reminder_note": {"stringValue": "Initial outreach pending"},
             "timestamp": {"stringValue": time.strftime("%Y-%m-%d %H:%M:%S")}
         }
     }
@@ -146,18 +149,19 @@ else:
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract insights, find emails, manage your sales pipeline, and execute direct outreach.")
+    st.markdown("Extract insights, manage pipelines, track task reminders, and execute direct outreach.")
 
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
     resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
 
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📝 Manual Outreach", 
-        "🌍 Live Google Maps Scraper", 
-        "📊 Sales Pipeline Kanban", 
-        "📂 Saved History & Export"
+        "🌍 Live Maps Scraper", 
+        "📊 Kanban Pipeline", 
+        "⏰ Reminders & Tasks",
+        "📂 Saved History"
     ])
 
     with tab1:
@@ -233,7 +237,7 @@ else:
 
     with tab2:
         st.subheader("Scrape Live Businesses & Find Emails")
-        st.markdown("Pull real businesses, automatically hunt for contact emails, and save to cloud history.")
+        st.markdown("Pull real businesses, automatically hunt for contact emails, and save to cloud.")
         
         search_query = st.text_input("Search Query (e.g., Hotels, Web Designers, Dental Clinics)", "Hotels", key="map_search_query")
         search_location = st.text_input("Search Location", "Abuja, Nigeria", key="map_search_location")
@@ -361,7 +365,7 @@ else:
                 for doc in documents:
                     fields = doc.get("fields", {})
                     if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
-                        doc_path = doc.get("name", "") # Full resource name for updating
+                        doc_path = doc.get("name", "")
                         user_leads.append({
                             "id": doc_path.split("/")[-1],
                             "Company": fields.get("title", {}).get("stringValue", "N/A"),
@@ -387,7 +391,6 @@ else:
                                     st.text(f"📞 {lead['Phone']}")
                                     st.text(f"✉️ {lead['Email']}")
                                     
-                                    # Quick status switcher
                                     new_status = st.selectbox(
                                                 "Move to:", 
                                                 stages, 
@@ -396,7 +399,6 @@ else:
                                     )
                                     
                                     if new_status != stage:
-                                        # Update status in Firestore via REST PATCH
                                         patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
                                         patch_payload = {
                                             "fields": {
@@ -411,13 +413,76 @@ else:
                                         else:
                                             st.error("Failed to update status.")
                 else:
-                    st.info("No saved leads found in your pipeline yet. Scrape some leads first!")
+                    st.info("No saved leads found in your pipeline yet.")
             else:
                 st.error("Failed to fetch pipeline from Firestore.")
         except Exception as e:
             st.error(f"Error loading Kanban board: {e}")
 
     with tab4:
+        st.subheader("⏰ Reminders & Task Manager")
+        st.markdown("Set and track follow-up dates and task notes for your leads.")
+
+        if st.button("🔄 Refresh Tasks"):
+            st.rerun()
+
+        try:
+            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
+            response = requests.get(firestore_url, headers=headers)
+
+            if response.status_code == 200:
+                documents = response.json().get("documents", [])
+                user_tasks = []
+
+                for doc in documents:
+                    fields = doc.get("fields", {})
+                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                        doc_path = doc.get("name", "")
+                        user_tasks.append({
+                            "id": doc_path.split("/")[-1],
+                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
+                            "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
+                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
+                            "Reminder Date": fields.get("reminder_date", {}).get("stringValue", str(date.today())),
+                            "Reminder Note": fields.get("reminder_note", {}).get("stringValue", "Follow-up required")
+                        })
+
+                if user_tasks:
+                    for task in user_tasks:
+                        with st.container(border=True):
+                            col_t1, col_t2 = st.columns([2, 3])
+                            with col_t1:
+                                st.markdown(f"### 🏢 {task['Company']}")
+                                st.text(f"📞 {task['Phone']} | ✉️ {task['Email']}")
+                                st.markdown(f"**Current Due Date:** `{task['Reminder Date']}`")
+                            with col_t2:
+                                new_date = st.date_input("Update Reminder Date", value=date.today(), key=f"date_{task['id']}")
+                                new_note = st.text_input("Task Note", value=task['Reminder Note'], key=f"note_{task['id']}")
+
+                                if st.button("💾 Save Task Schedule", key=f"save_task_{task['id']}"):
+                                    patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{task['id']}?updateMask.fieldPaths=reminder_date&updateMask.fieldPaths=reminder_note&key={FIREBASE_API_KEY}"
+                                    patch_payload = {
+                                        "fields": {
+                                            "reminder_date": {"stringValue": str(new_date)},
+                                            "reminder_note": {"stringValue": new_note}
+                                        }
+                                    }
+                                    patch_res = requests.patch(patch_url, headers=headers, json=patch_payload)
+                                    if patch_res.status_code == 200:
+                                        st.success("Task reminder updated successfully!")
+                                        time.sleep(0.5)
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to update task reminder.")
+                else:
+                    st.info("No leads available to schedule tasks for.")
+            else:
+                st.error("Failed to fetch tasks from Firestore.")
+        except Exception as e:
+            st.error(f"Error loading task manager: {e}")
+
+    with tab5:
         st.subheader("📂 Saved Cloud Leads & History")
         st.markdown("Review all leads saved to your Firebase Firestore account history and export them.")
         
@@ -444,6 +509,8 @@ else:
                                 "Website": fields.get("website", {}).get("stringValue", "N/A"),
                                 "Email": fields.get("email", {}).get("stringValue", "N/A"),
                                 "Status": fields.get("status", {}).get("stringValue", "New Lead"),
+                                "Reminder Date": fields.get("reminder_date", {}).get("stringValue", "N/A"),
+                                "Task Note": fields.get("reminder_note", {}).get("stringValue", "N/A"),
                                 "Saved At": fields.get("timestamp", {}).get("stringValue", "N/A")
                             })
                     
