@@ -3,6 +3,7 @@ import os
 import requests
 import json
 import time
+import pandas as pd
 from generator import generate_outreach_email
 
 # ==========================================
@@ -17,11 +18,12 @@ st.set_page_config(
 # ==========================================
 # 2. FIREBASE AUTH CONFIGURATION
 # ==========================================
-# Load Firebase Web API Key from Streamlit Secrets (or fallback)
 try:
     FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
+    PROJECT_ID = st.secrets.get("FIREBASE_PROJECT_ID", "jedge-connect")
 except Exception:
     FIREBASE_API_KEY = ""
+    PROJECT_ID = "jedge-connect"
 
 def sign_up(email, password):
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}"
@@ -35,9 +37,35 @@ def sign_in(email, password):
     response = requests.post(url, headers={"Content-Type": "application/json"}, data=payload)
     return response.json()
 
-# Initialize session state for user authentication
+def save_lead_to_firestore(user_email, lead_data, id_token):
+    """Saves a scraped lead to Firebase Firestore using REST API"""
+    url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {id_token}"
+    }
+    
+    # Format data for Firestore REST API structure
+    firestore_payload = {
+        "fields": {
+            "user": {"stringValue": user_email},
+            "title": {"stringValue": str(lead_data.get("title", "N/A"))},
+            "category": {"stringValue": str(lead_data.get("categoryName", "N/A"))},
+            "rating": {"doubleValue": float(lead_data.get("totalScore", 0.0))},
+            "reviews": {"integerValue": int(lead_data.get("reviewsCount", 0))},
+            "address": {"stringValue": str(lead_data.get("address", "N/A"))},
+            "phone": {"stringValue": str(lead_data.get("phone", "N/A"))},
+            "website": {"stringValue": str(lead_data.get("website", "N/A"))},
+            "timestamp": {"stringValue": time.strftime("%Y-%m-%d %H:%M:%S")}
+        }
+    }
+    requests.post(url, headers=headers, data=json.dumps(firestore_payload))
+
+# Initialize session state
 if "user" not in st.session_state:
     st.session_state["user"] = None
+if "idToken" not in st.session_state:
+    st.session_state["idToken"] = None
 
 # ==========================================
 # 3. AUTHENTICATION GATE
@@ -61,6 +89,7 @@ if not st.session_state["user"]:
                 res = sign_in(login_email, login_password)
                 if "idToken" in res:
                     st.session_state["user"] = res["email"]
+                    st.session_state["idToken"] = res["idToken"]
                     st.success("Logged in successfully!")
                     st.rerun()
                 else:
@@ -79,6 +108,7 @@ if not st.session_state["user"]:
                 res = sign_up(signup_email, signup_password)
                 if "idToken" in res:
                     st.session_state["user"] = res["email"]
+                    st.session_state["idToken"] = res["idToken"]
                     st.success("Account created and logged in successfully!")
                     st.rerun()
                 else:
@@ -94,18 +124,19 @@ else:
     st.sidebar.success(f"Logged in as: **{st.session_state['user']}**")
     if st.sidebar.button("Log Out"):
         st.session_state["user"] = None
+        st.session_state["idToken"] = None
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract firmographic insights, filter by your ICP, and generate hyper-personalized cold emails instantly.")
+    st.markdown("Extract firmographic insights, filter by your ICP, generate custom emails, and export your pipeline.")
 
-    # Sidebar API Configurations (Using central keys from Streamlit secrets with fallback)
+    # Sidebar API Configurations
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
 
     # App Navigation Tabs
-    tab1, tab2 = st.tabs(["📝 Manual Lead Entry", "🌍 Live Google Maps Scraper"])
+    tab1, tab2, tab3 = st.tabs(["📝 Manual Lead Entry", "🌍 Live Google Maps Scraper", "📂 Saved Leads History"])
 
     with tab1:
         st.subheader("Add Target Lead Details Manually")
@@ -121,7 +152,7 @@ else:
 
         if st.button("Generate Personalized Outreach"):
             if not openai_key:
-                st.error("Please provide an OpenAI API key in the sidebar or secrets.")
+                st.error("Please provide an OpenAI API key in the sidebar.")
             else:
                 with st.spinner("Generating custom cold email..."):
                     try:
@@ -140,7 +171,7 @@ else:
 
     with tab2:
         st.subheader("Scrape Live Businesses from Google Maps")
-        st.markdown("Pull real businesses using Apify's official Google Maps scraper.")
+        st.markdown("Pull real businesses, export to CSV, and save them to your secure cloud account.")
         
         search_query = st.text_input("Search Query (e.g., Hotels, Web Designers, Dental Clinics)", "Hotels", key="map_search_query")
         search_location = st.text_input("Search Location", "Abuja, Nigeria", key="map_search_location")
@@ -152,7 +183,6 @@ else:
             else:
                 with st.spinner("Scraping live data from Google Maps... (This may take a moment)"):
                     try:
-                        # Call Official Apify Google Maps Scraper Actor
                         run_url = f"https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token={apify_token}"
                         payload = {
                             "searchStringsArray": [search_query],
@@ -166,10 +196,8 @@ else:
                             dataset_id = run_data["defaultDatasetId"]
                             run_id = run_data["id"]
                             
-                            # Wait for the actor run to finish asynchronously
                             status_url = f"https://api.apify.com/v2/actor-runs/{run_id}?token={apify_token}"
-                            
-                            for _ in range(30): # Poll for up to 60 seconds
+                            for _ in range(30):
                                 status_res = requests.get(status_url)
                                 if status_res.status_code == 200:
                                     status = status_res.json()["data"]["status"]
@@ -180,7 +208,6 @@ else:
                                         break
                                 time.sleep(2)
                             
-                            # Fetch results from dataset
                             dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={apify_token}"
                             data_res = requests.get(dataset_url)
                             
@@ -189,7 +216,35 @@ else:
                                 if items:
                                     st.success(f"Successfully scraped {len(items)} live leads!")
                                     
-                                    # Display clean results
+                                    # Process and save each lead to Firestore
+                                    clean_leads = []
+                                    for item in items:
+                                        lead_dict = {
+                                            "title": item.get('title', 'N/A'),
+                                            "categoryName": item.get('categoryName', 'N/A'),
+                                            "totalScore": item.get('totalScore', 0.0),
+                                            "reviewsCount": item.get('reviewsCount', 0),
+                                            "address": item.get('address', 'N/A'),
+                                            "phone": item.get('phone', 'N/A'),
+                                            "website": item.get('website', 'N/A')
+                                        }
+                                        clean_leads.append(lead_dict)
+                                        save_lead_to_firestore(st.session_state["user"], lead_dict, st.session_state["idToken"])
+                                    
+                                    # Convert to Pandas DataFrame for display & CSV export
+                                    df = pd.DataFrame(clean_leads)
+                                    st.dataframe(df)
+                                    
+                                    # CSV Export Button
+                                    csv_data = df.to_csv(index=False).encode('utf-8')
+                                    st.download_button(
+                                        label="📥 Download Scraped Leads as CSV",
+                                        data=csv_data,
+                                        file_name="jedge_connect_leads.csv",
+                                        mime="text/csv"
+                                    )
+                                    
+                                    # Detailed View
                                     for idx, item in enumerate(items, 1):
                                         st.markdown(f"### {idx}. {item.get('title', 'N/A')}")
                                         st.write(f"**Category:** {item.get('categoryName', 'N/A')} | **Rating:** {item.get('totalScore', 'N/A')} ⭐ ({item.get('reviewsCount', 0)} reviews)")
@@ -197,7 +252,7 @@ else:
                                         st.write(f"**Phone:** {item.get('phone', 'N/A')} | **Website:** {item.get('website', 'N/A')}")
                                         st.markdown("---")
                                 else:
-                                    st.warning("No leads found for this query/location. Try broadening your search location.")
+                                    st.warning("No leads found for this query/location.")
                             else:
                                 st.error("Failed to fetch dataset items from Apify.")
                         else:
@@ -205,3 +260,51 @@ else:
                             st.error(f"Apify API returned error: {error_detail}")
                     except Exception as e:
                         st.error(f"Scraping failed: {e}")
+
+    with tab3:
+        st.subheader("Your Saved Cloud Leads")
+        st.markdown("Review all leads saved to your Firebase Firestore account history.")
+        
+        if st.button("🔄 Refresh History"):
+            try:
+                firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+                headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
+                response = requests.get(firestore_url, headers=headers)
+                
+                if response.status_code == 200:
+                    documents = response.json().get("documents", [])
+                    user_leads = []
+                    
+                    for doc in documents:
+                        fields = doc.get("fields", {})
+                        # Filter by currently logged in user
+                        if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                            user_leads.append({
+                                "Company": fields.get("title", {}).get("stringValue", "N/A"),
+                                "Category": fields.get("category", {}).get("stringValue", "N/A"),
+                                "Rating": fields.get("rating", {}).get("doubleValue", 0.0),
+                                "Reviews": fields.get("reviews", {}).get("integerValue", 0),
+                                "Address": fields.get("address", {}).get("stringValue", "N/A"),
+                                "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
+                                "Website": fields.get("website", {}).get("stringValue", "N/A"),
+                                "Saved At": fields.get("timestamp", {}).get("stringValue", "N/A")
+                            })
+                    
+                    if user_leads:
+                        history_df = pd.DataFrame(user_leads)
+                        st.dataframe(history_df)
+                        
+                        # Export History to CSV
+                        history_csv = history_df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Download History CSV",
+                            data=history_csv,
+                            file_name="jedge_connect_history.csv",
+                            mime="text/csv"
+                        )
+                    else:
+                        st.info("No saved leads found in your cloud history yet. Try scraping some leads!")
+                else:
+                    st.error("Failed to fetch history from Firestore.")
+            except Exception as e:
+                st.error(f"Error loading history: {e}")
