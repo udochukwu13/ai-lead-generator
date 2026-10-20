@@ -2,7 +2,8 @@ import streamlit as st
 import os
 import requests
 import json
-from generator import generate_outreach_email  # Assumes your generator function is here
+import time
+from generator import generate_outreach_email
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -16,11 +17,11 @@ st.set_page_config(
 # ==========================================
 # 2. FIREBASE AUTH CONFIGURATION
 # ==========================================
-# Load Firebase Web API Key from Streamlit Secrets (or fallback for local testing)
+# Load Firebase Web API Key from Streamlit Secrets (or fallback)
 try:
     FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
 except Exception:
-    FIREBASE_API_KEY = ""  # Will prompt user if missing
+    FIREBASE_API_KEY = ""
 
 def sign_up(email, password):
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={FIREBASE_API_KEY}"
@@ -98,7 +99,7 @@ else:
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
     st.markdown("Extract firmographic insights, filter by your ICP, and generate hyper-personalized cold emails instantly.")
 
-    # Sidebar API Configurations (Using central keys or fallback inputs)
+    # Sidebar API Configurations (Using central keys from Streamlit secrets with fallback)
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
@@ -120,7 +121,7 @@ else:
 
         if st.button("Generate Personalized Outreach"):
             if not openai_key:
-                st.error("Please provide an OpenAI API key in the sidebar.")
+                st.error("Please provide an OpenAI API key in the sidebar or secrets.")
             else:
                 with st.spinner("Generating custom cold email..."):
                     try:
@@ -139,20 +140,20 @@ else:
 
     with tab2:
         st.subheader("Scrape Live Businesses from Google Maps")
-        st.markdown("Pull real businesses using Apify's web API.")
+        st.markdown("Pull real businesses using Apify's official Google Maps scraper.")
         
-        search_query = st.text_input("Search Query (e.g., Web Designers, Dental Clinics)", "web designers")
-        search_location = st.text_input("Search Location", "Lagos, Nigeria")
-        max_leads = st.slider("Max Leads to Fetch", 1, 10, 3)
+        search_query = st.text_input("Search Query (e.g., Hotels, Web Designers, Dental Clinics)", "Hotels", key="map_search_query")
+        search_location = st.text_input("Search Location", "Abuja, Nigeria", key="map_search_location")
+        max_leads = st.slider("Max Leads to Fetch", 1, 10, 3, key="map_max_leads")
 
         if st.button("Start Live Scraping 🔍"):
             if not apify_token:
                 st.error("Please provide your Apify API Token in the sidebar or secrets.")
             else:
-                with st.spinner("Scraping live data from Google Maps..."):
+                with st.spinner("Scraping live data from Google Maps... (This may take a moment)"):
                     try:
-                        # Call Apify Actor
-                        run_url = f"https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs?token={apify_token}"
+                        # Call Official Apify Google Maps Scraper Actor
+                        run_url = f"https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token={apify_token}"
                         payload = {
                             "searchStringsArray": [search_query],
                             "locationQuery": search_location,
@@ -163,6 +164,21 @@ else:
                         if res.status_code in [200, 201]:
                             run_data = res.json()["data"]
                             dataset_id = run_data["defaultDatasetId"]
+                            run_id = run_data["id"]
+                            
+                            # Wait for the actor run to finish asynchronously
+                            status_url = f"https://api.apify.com/v2/actor-runs/{run_id}?token={apify_token}"
+                            
+                            for _ in range(30): # Poll for up to 60 seconds
+                                status_res = requests.get(status_url)
+                                if status_res.status_code == 200:
+                                    status = status_res.json()["data"]["status"]
+                                    if status == "SUCCEEDED":
+                                        break
+                                    elif status in ["FAILED", "ABORTED"]:
+                                        st.error(f"Apify actor run failed with status: {status}")
+                                        break
+                                time.sleep(2)
                             
                             # Fetch results from dataset
                             dataset_url = f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={apify_token}"
@@ -170,14 +186,18 @@ else:
                             
                             if data_res.status_code == 200:
                                 items = data_res.json()
-                                st.success(f"Successfully scraped {len(items)} live leads!")
-                                
-                                # Display clean results
-                                for idx, item in enumerate(items):
-                                    st.write(f"**{idx}: {item.get('title', 'N/A')}**")
-                                    st.text(f"Category: {item.get('categoryName', 'N/A')} | Rating: {item.get('totalScore', 'N/A')} ({item.get('reviewsCount', 0)} reviews)")
-                                    st.text(f"Address: {item.get('address', 'N/A')}")
-                                    st.markdown("---")
+                                if items:
+                                    st.success(f"Successfully scraped {len(items)} live leads!")
+                                    
+                                    # Display clean results
+                                    for idx, item in enumerate(items, 1):
+                                        st.markdown(f"### {idx}. {item.get('title', 'N/A')}")
+                                        st.write(f"**Category:** {item.get('categoryName', 'N/A')} | **Rating:** {item.get('totalScore', 'N/A')} ⭐ ({item.get('reviewsCount', 0)} reviews)")
+                                        st.write(f"**Address:** {item.get('address', 'N/A')}")
+                                        st.write(f"**Phone:** {item.get('phone', 'N/A')} | **Website:** {item.get('website', 'N/A')}")
+                                        st.markdown("---")
+                                else:
+                                    st.warning("No leads found for this query/location. Try broadening your search location.")
                             else:
                                 st.error("Failed to fetch dataset items from Apify.")
                         else:
