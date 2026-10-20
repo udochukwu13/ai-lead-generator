@@ -3,6 +3,7 @@ import os
 import requests
 import json
 import time
+import re
 import pandas as pd
 from generator import generate_outreach_email
 
@@ -37,6 +38,28 @@ def sign_in(email, password):
     response = requests.post(url, headers={"Content-Type": "application/json"}, data=payload)
     return response.json()
 
+def extract_emails_from_website(url):
+    """Scrapes a website URL to find contact email addresses"""
+    if not url or url == 'N/A':
+        return "N/A"
+    try:
+        # Ensure URL has a scheme
+        if not url.startswith("http"):
+            url = "https://" + url
+            
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            # Regex to find email addresses
+            emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", response.text)
+            # Filter out common junk image extensions misidentified as emails
+            valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])]
+            if valid_emails:
+                return valid_emails[0] # Return the first unique email found
+    except Exception:
+        pass
+    return "N/A"
+
 def save_lead_to_firestore(user_email, lead_data, id_token):
     url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
     headers = {
@@ -53,6 +76,7 @@ def save_lead_to_firestore(user_email, lead_data, id_token):
             "address": {"stringValue": str(lead_data.get("address", "N/A"))},
             "phone": {"stringValue": str(lead_data.get("phone", "N/A"))},
             "website": {"stringValue": str(lead_data.get("website", "N/A"))},
+            "email": {"stringValue": str(lead_data.get("email", "N/A"))},
             "timestamp": {"stringValue": time.strftime("%Y-%m-%d %H:%M:%S")}
         }
     }
@@ -125,7 +149,7 @@ else:
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract insights, engage via WhatsApp or phone, generate custom emails, and export your pipeline.")
+    st.markdown("Extract insights, find emails automatically, engage via WhatsApp/call, and export your pipeline.")
 
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
@@ -165,18 +189,18 @@ else:
                         st.error(f"An error occurred: {e}")
 
     with tab2:
-        st.subheader("Scrape Live Businesses from Google Maps")
-        st.markdown("Pull real businesses, contact them instantly via WhatsApp/Call, and save to cloud history.")
+        st.subheader("Scrape Live Businesses & Find Emails")
+        st.markdown("Pull real businesses, automatically hunt for contact emails from their websites, and save to cloud.")
         
         search_query = st.text_input("Search Query (e.g., Hotels, Web Designers, Dental Clinics)", "Hotels", key="map_search_query")
         search_location = st.text_input("Search Location", "Abuja, Nigeria", key="map_search_location")
         max_leads = st.slider("Max Leads to Fetch", 1, 10, 3, key="map_max_leads")
 
-        if st.button("Start Live Scraping 🔍"):
+        if st.button("Start Live Scraping & Email Hunt 🔍"):
             if not apify_token:
                 st.error("Please provide your Apify API Token in the sidebar or secrets.")
             else:
-                with st.spinner("Scraping live data from Google Maps... (This may take a moment)"):
+                with st.spinner("Scraping live data & hunting for contact emails... (This may take a moment)"):
                     try:
                         run_url = f"https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token={apify_token}"
                         payload = {
@@ -209,10 +233,13 @@ else:
                             if data_res.status_code == 200:
                                 items = data_res.json()
                                 if items:
-                                    st.success(f"Successfully scraped {len(items)} live leads!")
+                                    st.success(f"Successfully scraped {len(items)} leads and found contact emails!")
                                     
                                     clean_leads = []
                                     for item in items:
+                                        website = item.get('website', 'N/A')
+                                        found_email = extract_emails_from_website(website)
+                                        
                                         lead_dict = {
                                             "title": item.get('title', 'N/A'),
                                             "categoryName": item.get('categoryName', 'N/A'),
@@ -220,7 +247,8 @@ else:
                                             "reviewsCount": item.get('reviewsCount', 0),
                                             "address": item.get('address', 'N/A'),
                                             "phone": item.get('phone', 'N/A'),
-                                            "website": item.get('website', 'N/A')
+                                            "website": website,
+                                            "email": found_email
                                         }
                                         clean_leads.append(lead_dict)
                                         save_lead_to_firestore(st.session_state["user"], lead_dict, st.session_state["idToken"])
@@ -230,30 +258,37 @@ else:
                                     
                                     csv_data = df.to_csv(index=False).encode('utf-8')
                                     st.download_button(
-                                        label="📥 Download Scraped Leads as CSV",
+                                        label="📥 Download Scraped Leads & Emails as CSV",
                                         data=csv_data,
                                         file_name="jedge_connect_leads.csv",
                                         mime="text/csv"
                                     )
                                     
-                                    # Detailed View with Clickable WhatsApp & Call Links
-                                    for idx, item in enumerate(items, 1):
-                                        st.markdown(f"### {idx}. {item.get('title', 'N/A')}")
-                                        st.write(f"**Category:** {item.get('categoryName', 'N/A')} | **Rating:** {item.get('totalScore', 'N/A')} ⭐ ({item.get('reviewsCount', 0)} reviews)")
-                                        st.write(f"**Address:** {item.get('address', 'N/A')}")
+                                    # Detailed View with Email, WhatsApp & Call Links
+                                    for idx, item in enumerate(clean_leads, 1):
+                                        st.markdown(f"### {idx}. {item['title']}")
+                                        st.write(f"**Category:** {item['categoryName']} | **Rating:** {item['totalScore']} ⭐ ({item['reviewsCount']} reviews)")
+                                        st.write(f"**Address:** {item['address']}")
                                         
-                                        phone = item.get('phone', 'N/A')
-                                        website = item.get('website', 'N/A')
-                                        
+                                        # Display Email
+                                        email = item['email']
+                                        if email != 'N/A':
+                                            st.markdown(f"**Email:** [{email}](mailto:{email})")
+                                        else:
+                                            st.write("**Email:** N/A (Found via website scan)")
+                                            
+                                        # Display Phone & WhatsApp
+                                        phone = item['phone']
                                         if phone != 'N/A':
-                                            # Clean phone number for links (remove spaces, dashes)
                                             clean_phone = ''.join(c for c in phone if c.isdigit() or c == '+')
                                             st.markdown(f"**Phone:** [{phone}](tel:{clean_phone}) | 💬 [Chat on WhatsApp](https://wa.me/{clean_phone.replace('+', '')})")
                                         else:
                                             st.write("**Phone:** N/A")
                                             
+                                        # Display Website
+                                        website = item['website']
                                         if website != 'N/A':
-                                            st.write(f"**Website:** [{website}]({website})")
+                                            st.markdown(f"**Website:** [{website}]({website})")
                                         else:
                                             st.write("**Website:** N/A")
                                             
@@ -293,6 +328,7 @@ else:
                                 "Address": fields.get("address", {}).get("stringValue", "N/A"),
                                 "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
                                 "Website": fields.get("website", {}).get("stringValue", "N/A"),
+                                "Email": fields.get("email", {}).get("stringValue", "N/A"),
                                 "Saved At": fields.get("timestamp", {}).get("stringValue", "N/A")
                             })
                     
