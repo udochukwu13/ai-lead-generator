@@ -1,37 +1,49 @@
-import os
-import streamlit as st
-from openai import OpenAI
+import requests
+import json
 
-# Safely fetch OpenAI key from Streamlit Secrets or environment fallback
-try:
-    openai_api_key = st.secrets["OPENAI_API_KEY"]
-except Exception:
-    openai_api_key = os.environ.get("OPENAI_API_KEY", "")
-
-client = OpenAI(api_key=openai_api_key)
-
-def generate_outreach_email(company_name, industry, rating, reviews_count, location, api_key=None):
-    # Use passed api_key (from sidebar) or fallback to the master secret key
-    active_key = api_key if api_key else openai_api_key
-    
-    if not active_key:
-        raise ValueError("Missing OpenAI API Key. Please configure it in Streamlit Secrets.")
-
-    # Re-initialize client with active key if needed
-    local_client = OpenAI(api_key=active_key)
+def generate_outreach_email(company_name, industry, rating, reviews_count, location, api_key):
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
     
     prompt = f"""
-    Write a hyper-personalized B2B cold email for a company named {company_name}.
-    Industry: {industry}
-    Location: {location}
-    Google Rating: {rating} ({reviews_count} reviews)
-    
-    The email should pitch automated lead generation services to help them get more clients. Keep it concise, engaging, and professional.
+    Write a short, highly personalized B2B cold outreach email to the owner or manager of {company_name}, a {industry} business located in {location}.
+    Their Google rating is {rating} stars with {reviews_count} reviews.
+    Pitching JEdge Connect services (software solutions, automation, or delivery/payroll solutions like Splitify/JE-Express) to help them scale and improve customer satisfaction.
+    Keep it professional, friendly, and concise.
     """
     
-    response = local_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=300
-    )
-    return response.choices[0].message.content
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7
+    }
+    
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    res_json = response.json()
+    return res_json["choices"]["message"]["content"]
+
+def generate_followup_email(company_name, industry, api_key):
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    prompt = f"""
+    Write a short, polite, and friendly follow-up B2B email for {company_name}, a {industry} business. 
+    This is a second touchpoint after an initial cold email went unanswered. 
+    Keep it brief, value-focused, and give them a very low-friction call to action to reply or chat on WhatsApp.
+    """
+    
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7
+    }
+    
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    res_json = response.json()
+    return res_json["choices"]["message"]["content"]

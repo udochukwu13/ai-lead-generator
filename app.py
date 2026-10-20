@@ -5,7 +5,7 @@ import json
 import time
 import re
 import pandas as pd
-from generator import generate_outreach_email
+from generator import generate_outreach_email, generate_followup_email
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -39,23 +39,19 @@ def sign_in(email, password):
     return response.json()
 
 def extract_emails_from_website(url):
-    """Scrapes a website URL to find contact email addresses"""
     if not url or url == 'N/A':
         return "N/A"
     try:
-        # Ensure URL has a scheme
         if not url.startswith("http"):
             url = "https://" + url
             
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
-            # Regex to find email addresses
             emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", response.text)
-            # Filter out common junk image extensions misidentified as emails
             valid_emails = [e for e in emails if not any(e.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])]
             if valid_emails:
-                return valid_emails[0] # Return the first unique email found
+                return valid_emails[0]
     except Exception:
         pass
     return "N/A"
@@ -149,16 +145,16 @@ else:
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract insights, find emails automatically, engage via WhatsApp/call, and export your pipeline.")
+    st.markdown("Extract insights, find emails, generate initial & follow-up outreach, and export your pipeline.")
 
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
 
-    tab1, tab2, tab3 = st.tabs(["📝 Manual Lead Entry", "🌍 Live Google Maps Scraper", "📂 Saved Leads History"])
+    tab1, tab2, tab3 = st.tabs(["📝 Manual Lead Entry & AI Outreach", "🌍 Live Google Maps Scraper", "📂 Saved Leads History"])
 
     with tab1:
-        st.subheader("Add Target Lead Details Manually")
+        st.subheader("Manual Lead Entry & AI Outreach Generator")
         col1, col2 = st.columns(2)
         with col1:
             company_name = st.text_input("Company Name", "Lagos Premier Logistics")
@@ -169,28 +165,47 @@ else:
         
         location = st.text_input("Location", "Lagos, Nigeria")
 
-        if st.button("Generate Personalized Outreach"):
-            if not openai_key:
-                st.error("Please provide an OpenAI API key in the sidebar.")
-            else:
-                with st.spinner("Generating custom cold email..."):
-                    try:
-                        email_draft = generate_outreach_email(
-                            company_name=company_name,
-                            industry=industry,
-                            rating=rating,
-                            reviews_count=reviews_count,
-                            location=location,
-                            api_key=openai_key
-                        )
-                        st.subheader("Generated Cold Email Preview")
-                        st.code(email_draft, language="markdown")
-                    except Exception as e:
-                        st.error(f"An error occurred: {e}")
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("Generate Initial Cold Email"):
+                if not openai_key:
+                    st.error("Please provide an OpenAI API key in the sidebar.")
+                else:
+                    with st.spinner("Generating custom cold email..."):
+                        try:
+                            email_draft = generate_outreach_email(
+                                company_name=company_name,
+                                industry=industry,
+                                rating=rating,
+                                reviews_count=reviews_count,
+                                location=location,
+                                api_key=openai_key
+                            )
+                            st.subheader("Initial Cold Email Preview")
+                            st.code(email_draft, language="markdown")
+                        except Exception as e:
+                            st.error(f"An error occurred: {e}")
+
+        with col_btn2:
+            if st.button("Generate AI Follow-Up Email"):
+                if not openai_key:
+                    st.error("Please provide an OpenAI API key in the sidebar.")
+                else:
+                    with st.spinner("Generating follow-up email..."):
+                        try:
+                            followup_draft = generate_followup_email(
+                                company_name=company_name,
+                                industry=industry,
+                                api_key=openai_key
+                            )
+                            st.subheader("AI Follow-Up Email Preview")
+                            st.code(followup_draft, language="markdown")
+                        except Exception as e:
+                            st.error(f"An error occurred: {e}")
 
     with tab2:
         st.subheader("Scrape Live Businesses & Find Emails")
-        st.markdown("Pull real businesses, automatically hunt for contact emails from their websites, and save to cloud.")
+        st.markdown("Pull real businesses, automatically hunt for contact emails, and save to cloud history.")
         
         search_query = st.text_input("Search Query (e.g., Hotels, Web Designers, Dental Clinics)", "Hotels", key="map_search_query")
         search_location = st.text_input("Search Location", "Abuja, Nigeria", key="map_search_location")
@@ -264,20 +279,17 @@ else:
                                         mime="text/csv"
                                     )
                                     
-                                    # Detailed View with Email, WhatsApp & Call Links
                                     for idx, item in enumerate(clean_leads, 1):
                                         st.markdown(f"### {idx}. {item['title']}")
                                         st.write(f"**Category:** {item['categoryName']} | **Rating:** {item['totalScore']} ⭐ ({item['reviewsCount']} reviews)")
                                         st.write(f"**Address:** {item['address']}")
                                         
-                                        # Display Email
                                         email = item['email']
                                         if email != 'N/A':
                                             st.markdown(f"**Email:** [{email}](mailto:{email})")
                                         else:
-                                            st.write("**Email:** N/A (Found via website scan)")
+                                            st.write("**Email:** N/A")
                                             
-                                        # Display Phone & WhatsApp
                                         phone = item['phone']
                                         if phone != 'N/A':
                                             clean_phone = ''.join(c for c in phone if c.isdigit() or c == '+')
@@ -285,7 +297,6 @@ else:
                                         else:
                                             st.write("**Phone:** N/A")
                                             
-                                        # Display Website
                                         website = item['website']
                                         if website != 'N/A':
                                             st.markdown(f"**Website:** [{website}]({website})")
