@@ -198,7 +198,6 @@ else:
     # ==========================================
     st.sidebar.success(f"Logged in as: **{st.session_state['user']}**")
     
-    # Subscription status widget in sidebar
     if st.session_state["is_pro"]:
         st.sidebar.success("🌟 Account Status: **PRO UNLIMITED**")
     else:
@@ -390,10 +389,119 @@ else:
 
     with tab4:
         st.subheader("📊 Pipeline & Multi-Service Studio")
-        st.markdown("Manage your leads pipeline and dispatch customized B2B proposals.")
+        st.markdown("Select a lead, check the specific services/solutions you want to offer them, preview the tailored proposal, and dispatch it.")
+        
         if st.button("🔄 Refresh Pipeline Leads"):
             st.rerun()
-        st.info("Pipeline view connected to your active Firebase Firestore records.")
+
+        try:
+            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
+            response = requests.get(firestore_url, headers=headers)
+            
+            if response.status_code == 200:
+                documents = response.json().get("documents", [])
+                pipeline_leads = []
+                
+                for doc in documents:
+                    fields = doc.get("fields", {})
+                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                        doc_path = doc.get("name", "")
+                        pipeline_leads.append({
+                            "id": doc_path.split("/")[-1],
+                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
+                            "Category": fields.get("category", {}).get("stringValue", "N/A"),
+                            "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
+                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
+                            "Website": fields.get("website", {}).get("stringValue", "N/A"),
+                            "Status": fields.get("status", {}).get("stringValue", "New Lead")
+                        })
+                
+                if pipeline_leads:
+                    lead_options = {f"{l['Company']} - {l['Email']} ({l['Status']})": l for l in pipeline_leads}
+                    selected_label = st.selectbox("Select Target Lead for Proposal", list(lead_options.keys()))
+                    selected_lead = lead_options[selected_label]
+
+                    st.markdown("### 🛠️ Select Services to Include in Proposal:")
+                    col_chk1, col_chk2 = st.columns(2)
+                    with col_chk1:
+                        service_school_erp = st.checkbox("🏫 School Mgt Software Solution (ERP)", value=True)
+                        service_crm = st.checkbox("🤝 CRM Management & Lead Tracking", value=True)
+                        service_auto = st.checkbox("⚙️ Full Operations Automation", value=True)
+                        service_games = st.checkbox("🎮 Academic & Educational Games Suite (All Subjects/Levels)", value=True)
+                    with col_chk2:
+                        service_book = st.checkbox("📊 Digital Bookkeeping & Record Keeping", value=False)
+                        service_web = st.checkbox("🌐 Custom Web & Mobile App Development", value=False)
+                        service_audit = st.checkbox("🔍 SEO & Website Health Optimization", value=True)
+
+                    chosen_services = []
+                    if service_school_erp: chosen_services.append("School Mgt Software Solution (ERP)")
+                    if service_crm: chosen_services.append("CRM Management & Lead Tracking")
+                    if service_auto: chosen_services.append("Full Operations Automation")
+                    if service_games: chosen_services.append("Academic & Educational Games Suite (Covering All Subjects & Levels)")
+                    if service_book: chosen_services.append("Digital Bookkeeping & Record Keeping")
+                    if service_web: chosen_services.append("Custom Web & Mobile App Development")
+                    if service_audit: chosen_services.append("SEO & Website Health Optimization")
+
+                    st.markdown("---")
+                    col_info1, col_info2, col_info3 = st.columns(3)
+                    with col_info1:
+                        st.markdown(f"**Company:** {selected_lead['Company']}")
+                        st.markdown(f"**Category:** {selected_lead['Category']}")
+                    with col_info2:
+                        st.markdown(f"**Email:** `{selected_lead['Email']}`")
+                        st.markdown(f"**Website:** `{selected_lead['Website']}`")
+                    with col_info3:
+                        st.markdown(f"**Current Status:** `{selected_lead['Status']}`")
+
+                    if selected_lead['Email'] == 'N/A' or '@' not in selected_lead['Email']:
+                        st.warning("⚠️ This lead does not have a valid email address.")
+                    elif selected_lead['Website'] == 'N/A':
+                        st.warning("⚠️ This lead does not have a valid website URL to analyze.")
+                    else:
+                        st.markdown(f"### 📋 Full-Screen Proposal Preview")
+                        with st.spinner("Analyzing website and generating customized multi-service proposal..."):
+                            audit_res = analyze_website_health(selected_lead['Website'])
+                            from generator import generate_custom_service_html if 'generate_custom_service_html' in globals() else lambda *args, **kwargs: ""
+                            # Using inline generator helper defined at the top
+                            full_html_report = generate_multimedia_campaign_html(
+                                campaign_title=f"Partnership & Software Solutions Proposal for {selected_lead['Company']}",
+                                message_body=f"We reviewed your website ({selected_lead['Website']}) and identified major opportunities to scale your operations through advanced software integration.",
+                                image_data_uri="",
+                                video_file_name=""
+                            )
+                        
+                        st.components.v1.html(full_html_report, height=420, scrolling=True)
+
+                        if st.button("🚀 Confirm & Dispatch Multi-Service Proposal"):
+                            if not resend_key:
+                                st.error("Please enter your Resend API Key in the sidebar.")
+                            elif not chosen_services:
+                                st.warning("Please select at least one service offering to include in the proposal.")
+                            else:
+                                with st.spinner("Dispatching multi-service proposal via Resend..."):
+                                    success, res_obj = send_custom_email(
+                                        client_email=selected_lead['Email'],
+                                        client_name=selected_lead['Company'],
+                                        services_list=chosen_services,
+                                        html_body=full_html_report,
+                                        api_key=resend_key
+                                    )
+                                    if success:
+                                        st.success(f"Proposal successfully sent to {selected_lead['Email']}!")
+                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{selected_lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
+                                        patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
+                                        requests.patch(patch_url, headers=headers, json=patch_payload)
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Failed to send email: {res_obj}")
+                else:
+                    st.info("No saved leads found in your pipeline yet.")
+            else:
+                st.error("Failed to fetch pipeline leads from Firestore.")
+        except Exception as e:
+            st.error(f"Error loading pipeline studio: {e}")
 
     with tab5:
         st.subheader("📢 Omnichannel Bulk Messaging Dashboard")
@@ -462,9 +570,29 @@ else:
                                 res, _ = send_outreach_email(recipient, campaign_title, full_html, resend_key)
                                 if res: success_count += 1
                     elif broadcast_channel == "WhatsApp Broadcast":
-                        for recipient in recipient_list:
-                            time.sleep(0.3)
-                            success_count += 1
+                        twilio_sid = st.secrets.get("TWILIO_ACCOUNT_SID", "")
+                        twilio_token = st.secrets.get("TWILIO_AUTH_TOKEN", "")
+                        twilio_whatsapp_number = st.secrets.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
+
+                        if not twilio_sid or not twilio_token:
+                            st.error("⚠️ Twilio API credentials are missing in your Streamlit secrets!")
+                        else:
+                            try:
+                                from twilio.rest import Client
+                                client = Client(twilio_sid, twilio_token)
+                                
+                                for recipient in recipient_list:
+                                    formatted_number = recipient if recipient.startswith("whatsapp:") else f"whatsapp:{recipient}"
+                                    message = client.messages.create(
+                                        body=f"*{campaign_title}*\n\n{campaign_message}",
+                                        from_=twilio_whatsapp_number,
+                                        to=formatted_number
+                                    )
+                                    if message.sid:
+                                        success_count += 1
+                                st.success(f"🎉 Successfully sent real WhatsApp message to {success_count} recipient(s) via Twilio!")
+                            except Exception as e:
+                                st.error(f"Failed to send WhatsApp message via Twilio: {e}")
                     else:
                         for recipient in recipient_list:
                             time.sleep(0.3)
