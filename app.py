@@ -532,19 +532,20 @@ https://johnnyedgelimited.com"""
                             </p>
                         </div>
                         """
-                        res, err_msg = send_custom_email(
+                        success, err_msg = send_custom_email(
                             client_email=target_audit_email,
                             client_name=audited_site,
                             services_list=["SEO Audit & Revenue Optimization"],
                             html_body=html_payload,
                             api_key=resend_key
                         )
-                        if res:
+                        if success:
                             st.success(f"🎉 Revenue optimization pitch successfully sent to {target_audit_email}!")
+                            audit_score_val = st.session_state["last_audit"].get('score', 85)
                             save_lead_to_storage(st.session_state["user"], {
                                 "title": audited_site,
                                 "categoryName": "SEO Audit Prospect",
-                                "totalScore": res['score'],
+                                "totalScore": audit_score_val,
                                 "reviewsCount": 1,
                                 "address": "Online",
                                 "phone": "N/A",
