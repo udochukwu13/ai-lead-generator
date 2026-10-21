@@ -179,14 +179,15 @@ else:
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
     resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📝 Manual Outreach", 
         "🌍 Live Maps Scraper", 
         "🔍 SEO & Health Audit",
         "📊 Kanban Pipeline", 
         "⏰ Reminders & Tasks",
         "📂 Saved History",
-        "📁 Bulk CSV Upload"
+        "📁 Bulk CSV Upload",
+        "🔄 Follow-Up Engine"
     ])
 
     with tab1:
@@ -639,7 +640,6 @@ else:
                 with st.spinner("Processing bulk leads and saving to Firebase..."):
                     success_count = 0
                     for index, row in bulk_df.iterrows():
-                        # Flexible mapping to support columns like 'title', 'Company', 'categoryName', etc.
                         company = row.get('title') if 'title' in row and pd.notna(row.get('title')) else row.get('Company', 'N/A')
                         category = row.get('categoryName') if 'categoryName' in row and pd.notna(row.get('categoryName')) else row.get('Category', 'B2B Prospect')
                         score = row.get('totalScore') if 'totalScore' in row and pd.notna(row.get('totalScore')) else 75.0
@@ -648,7 +648,6 @@ else:
                         phone = row.get('phone') if 'phone' in row and pd.notna(row.get('phone')) else row.get('Phone', 'N/A')
                         website = row.get('website') if 'website' in row and pd.notna(row.get('website')) else row.get('Website', 'N/A')
                         
-                        # Auto-hunt or check for email column
                         email = row.get('email') if 'email' in row and pd.notna(row.get('email')) else row.get('Email', 'N/A')
                         if email == 'N/A' or not email or str(email).lower() == 'nan':
                             email = extract_emails_from_website(website)
@@ -667,3 +666,80 @@ else:
                         success_count += 1
                     
                     st.success(f"Successfully processed and saved {success_count} leads to your Firestore pipeline!")
+
+    with tab8:
+        st.subheader("🔄 Automated Follow-Up Engine")
+        st.markdown("Select saved prospects from your pipeline and launch AI-crafted follow-up sequences.")
+
+        try:
+            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
+            response = requests.get(firestore_url, headers=headers)
+
+            if response.status_code == 200:
+                documents = response.json().get("documents", [])
+                pipeline_leads = []
+                
+                for doc in documents:
+                    fields = doc.get("fields", {})
+                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                        doc_path = doc.get("name", "")
+                        pipeline_leads.append({
+                            "id": doc_path.split("/")[-1],
+                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
+                            "Category": fields.get("category", {}).get("stringValue", "N/A"),
+                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
+                            "Status": fields.get("status", {}).get("stringValue", "New Lead")
+                        })
+
+                if pipeline_leads:
+                    lead_options = {f"{l['Company']} ({l['Email']})": l for l in pipeline_leads}
+                    selected_lead_label = st.selectbox("Select Prospect for Follow-Up", list(lead_options.keys()))
+                    chosen_lead = lead_options[selected_lead_label]
+
+                    st.info(f"Preparing follow-up sequence for: **{chosen_lead['Company']}** | Email: `{chosen_lead['Email']}`")
+
+                    if st.button("✨ Generate AI Follow-Up Pitch"):
+                        if not openai_key:
+                            st.error("Please provide your OpenAI API key in the sidebar.")
+                        else:
+                            with st.spinner("Drafting compelling follow-up message..."):
+                                try:
+                                    followup_body = generate_followup_email(
+                                        company_name=chosen_lead['Company'],
+                                        industry=chosen_lead['Category'],
+                                        api_key=openai_key
+                                    )
+                                    st.session_state["fu_body"] = followup_body
+                                    st.session_state["fu_subject"] = f"Following up: Scaling {chosen_lead['Company']}"
+                                    st.success("Follow-up draft ready!")
+                                except Exception as e:
+                                    st.error(f"Error generating follow-up: {e}")
+
+                    if "fu_body" in st.session_state and st.session_state["fu_body"]:
+                        fu_subject = st.text_input("Follow-Up Subject Line", value=st.session_state.get("fu_subject", ""))
+                        fu_editable_body = st.text_area("Follow-Up Message Body", value=st.session_state["fu_body"], height=200)
+
+                        if st.button("🚀 Send Follow-Up Email via Resend"):
+                            if not resend_key:
+                                st.error("Please provide your Resend API Key in the sidebar.")
+                            elif chosen_lead['Email'] == 'N/A' or '@' not in chosen_lead['Email']:
+                                st.warning("This lead does not have a valid email address.")
+                            else:
+                                with st.spinner("Dispatching follow-up via Resend..."):
+                                    res = send_outreach_email(chosen_lead['Email'], fu_subject, fu_editable_body, resend_key)
+                                    if res.get("success"):
+                                        st.success(f"Follow-up email successfully sent to {chosen_lead['Email']}!")
+                                        
+                                        # Automatically update lead status to 'Contacted' in Firestore
+                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{chosen_lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
+                                        patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
+                                        requests.patch(patch_url, headers=headers, json=patch_payload)
+                                    else:
+                                        st.error(f"Failed to send follow-up: {res.get('error')}")
+                else:
+                    st.warning("No leads found in your pipeline. Scrape or upload leads first.")
+            else:
+                st.error("Failed to load pipeline leads from Firestore.")
+        except Exception as e:
+            st.error(f"Error in follow-up engine: {e}")
