@@ -48,7 +48,7 @@ def generate_custom_service_html(target_url: str, company_name: str, selected_se
             <p style="margin: 0 0 10px 0;"><strong>Selected Solutions Offered by JEdge Connect Team:</strong></p>
             {services_section}
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 10px 0;">
-            <p style="margin: 5px 0; font-size: 13px; color: #64748b;">Current SEO Health Score: {seos_score_display := seo_score}/100 | Load Speed: {load_speed} | Security: {https_status}</p>
+            <p style="margin: 5px 0; font-size: 13px; color: #64748b;">Current SEO Health Score: {seo_score}/100 | Load Speed: {load_speed} | Security: {https_status}</p>
         </div>
 
         <p>By transitioning from manual record-keeping and disjointed workflows to our unified ecosystem, your organization can eliminate administrative bottlenecks, secure customer/student data, and drive automated growth.</p>
