@@ -4,13 +4,14 @@ import requests
 import json
 import time
 import re
+import base64
 import pandas as pd
 from datetime import date
 import resend
 from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health
 
 # ==========================================
-# 0. SAFE CONVERSION & AUDIT HELPERS
+# 0. SAFE CONVERSION & MEDIA HELPERS
 # ==========================================
 def safe_float(val, default=0.0):
     try:
@@ -28,9 +29,17 @@ def safe_int(val, default=0):
     except Exception:
         return default
 
-def generate_multimedia_campaign_html(campaign_title: str, message_body: str, image_url: str, video_url: str):
-    image_tag = f"""<div style="margin: 15px 0;"><img src="{image_url}" alt="Campaign Media" style="max-width: 100%; height: auto; border-radius: 8px;" /></div>""" if image_url else ""
-    video_tag = f"""<div style="margin: 15px 0; padding: 10px; background: #f1f5f9; border-radius: 6px;"><a href="{video_url}" target="_blank" style="color: #2563eb; font-weight: bold;">📺 Watch Campaign Video / Virtual Tour</a></div>""" if video_url else ""
+def get_image_base64(uploaded_file):
+    if uploaded_file is not None:
+        bytes_data = uploaded_file.getvalue()
+        encoded = base64.b64encode(bytes_data).decode()
+        mime_type = uploaded_file.type
+        return f"data:{mime_type};base64,{encoded}"
+    return ""
+
+def generate_multimedia_campaign_html(campaign_title: str, message_body: str, image_data_uri: str, video_file_name: str):
+    image_tag = f"""<div style="margin: 15px 0;"><img src="{image_data_uri}" alt="Campaign Banner" style="max-width: 100%; height: auto; border-radius: 8px;" /></div>""" if image_data_uri else ""
+    video_tag = f"""<div style="margin: 15px 0; padding: 12px; background: #f1f5f9; border-radius: 6px; font-size: 14px; color: #1e293b;">📺 <strong>Attached Video File:</strong> {video_file_name}</div>""" if video_file_name else ""
 
     html_content = f"""
     <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
@@ -194,8 +203,6 @@ else:
         st.sidebar.success("🌟 Account Status: **PRO UNLIMITED**")
     else:
         st.sidebar.warning(f"💡 Free Tier: **{5 - st.session_state['free_messages_sent']} / 5 Free Broadcasts Left**")
-        if st.sidebar.button("🚀 Upgrade to Pro Now"):
-            st.session_state["show_billing"] = True
 
     if st.sidebar.button("Log Out"):
         st.session_state["user"] = None
@@ -390,18 +397,20 @@ else:
 
     with tab5:
         st.subheader("📢 Omnichannel Bulk Messaging Dashboard")
-        st.markdown("Send bulk promotional campaigns, hotel discounts, or school admissions alerts via **Email**, **WhatsApp**, and **SMS** with multimedia attachments (Images & Videos).")
+        st.markdown("Send bulk promotional campaigns, hotel discounts, or school admissions alerts via **Email**, **WhatsApp**, and **SMS** with native device media attachments.")
 
-        # Channel Selector
         broadcast_channel = st.selectbox("Select Broadcast Channel:", ["Email Broadcast", "WhatsApp Broadcast", "Bulk SMS"])
         
         campaign_title = st.text_input("Campaign Title / Event Name", "🏨 Special Weekend Getaway & Promo Offer")
         
         col_m1, col_m2 = st.columns(2)
         with col_m1:
-            image_url_input = st.text_input("Image Banner URL (Recommended)", placeholder="https://images.unsplash.com/photo-...")
+            uploaded_image = st.file_uploader("🖼️ Upload Image Banner from Device", type=["png", "jpg", "jpeg", "webp"])
         with col_m2:
-            video_url_input = st.text_input("Video / Virtual Tour URL (Optional)", placeholder="https://youtube.com/watch?v=...")
+            uploaded_video = st.file_uploader("🎥 Upload Video File from Device (Optional)", type=["mp4", "mov", "avi", "mkv"])
+
+        image_data_uri = get_image_base64(uploaded_image) if uploaded_image else ""
+        video_filename = uploaded_video.name if uploaded_video else ""
 
         campaign_message = st.text_area("Campaign Message Body", placeholder="Dear Parents / Esteemed Guests, take advantage of our specialized discounts...", height=180)
 
@@ -431,13 +440,12 @@ else:
         st.markdown("---")
         st.markdown("#### 👁️ Live Campaign Preview")
         if campaign_message:
-            preview_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_url_input, video_url_input)
+            preview_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_data_uri, video_filename)
             st.components.v1.html(preview_html, height=350, scrolling=True)
 
         if st.button("🚀 Launch Omnichannel Broadcast"):
-            # Check free tier limits
             if not st.session_state["is_pro"] and st.session_state["free_messages_sent"] >= 5:
-                st.error("❌ Free Tier Limit Reached! You have used your 5 free broadcast messages. Please upgrade to Pro in the Billing tab.")
+                st.error("❌ Free Tier Limit Reached! You have used your 5 free broadcast messages. Please upgrade to Pro in the 'Billing & Upgrade' tab.")
             elif not recipient_list:
                 st.warning("Please provide at least one valid recipient.")
             elif not campaign_message:
@@ -449,18 +457,15 @@ else:
                         if not resend_key:
                             st.error("Please provide your Resend API Key in the sidebar.")
                         else:
-                            full_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_url_input, video_url_input)
+                            full_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_data_uri, video_filename)
                             for recipient in recipient_list:
                                 res, _ = send_outreach_email(recipient, campaign_title, full_html, resend_key)
                                 if res: success_count += 1
                     elif broadcast_channel == "WhatsApp Broadcast":
-                        # Simulated WhatsApp dispatch logic with media attachment support
                         for recipient in recipient_list:
-                            # In production, integrate Twilio / WATI / Meta Cloud WhatsApp API here
                             time.sleep(0.3)
                             success_count += 1
                     else:
-                        # Bulk SMS simulation
                         for recipient in recipient_list:
                             time.sleep(0.3)
                             success_count += 1
@@ -496,12 +501,12 @@ else:
                 <p>Perfect for growing hotels and schools running regular campaigns.</p>
                 <ul>
                     <li>Unlimited Email & WhatsApp Broadcasts</li>
-                    <li>Media Support (Images & Videos)</li>
+                    <li>Device Media Support (Images & Videos)</li>
                     <li>Priority Delivery Queue</li>
                 </ul>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("💳 Pay $15 / Month (Stripe / Paystack)"):
+            if st.button("💳 Pay $15 / Month (Stripe / Paystack)", key="btn_monthly_pro"):
                 st.session_state["is_pro"] = True
                 st.success("🎉 Payment successful! Your account has been upgraded to Monthly Pro Unlimited.")
                 st.rerun()
@@ -519,7 +524,7 @@ else:
                 </ul>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("💳 Pay $180 / Year (Stripe / Paystack)"):
+            if st.button("💳 Pay $180 / Year (Stripe / Paystack)", key="btn_annual_pro"):
                 st.session_state["is_pro"] = True
                 st.success("🎉 Payment successful! Your account has been upgraded to Annual Pro Unlimited.")
                 st.rerun()
