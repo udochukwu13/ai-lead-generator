@@ -28,20 +28,31 @@ def safe_int(val, default=0):
     except Exception:
         return default
 
-def generate_audit_html(target_url: str, seo_score: int, load_speed: str, has_https: bool):
+def generate_custom_service_html(target_url: str, company_name: str, selected_services: list, seo_score: int, load_speed: str, has_https: bool):
     https_status = "✅ Secure (HTTPS)" if has_https else "❌ Missing HTTPS (Not Secure)"
+    
+    # Format service bullets dynamically based on checklist selections
+    if selected_services:
+        services_html = "".join([f"<li style='margin: 8px 0;'><strong>{service}</strong></li>" for service in selected_services])
+        services_section = f"<ul>{services_html}</ul>"
+    else:
+        services_section = "<p>Comprehensive digital transformation and custom software solutions.</p>"
+
     html_content = f"""
-    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <h2 style="color: #0f172a;">📊 Website Audit Report</h2>
-        <p>Hello,</p>
-        <p>We ran a performance and security check on your website: <strong>{target_url}</strong></p>
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #0f172a;">🚀 Partnership & Software Solutions Proposal for {company_name}</h2>
+        <p>Hello <strong>{company_name}</strong> team,</p>
+        <p>We reviewed your online footprint and website (<strong>{target_url}</strong>) and identified major opportunities to scale your operations through advanced software integration.</p>
+        
         <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>SEO Health Score:</strong> {seo_score}/100</p>
-            <p style="margin: 5px 0;"><strong>Server Status:</strong> Online</p>
-            <p style="margin: 5px 0;"><strong>Load Speed:</strong> {load_speed}</p>
-            <p style="margin: 5px 0;"><strong>HTTPS Security:</strong> {https_status}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Selected Solutions Offered by JEdge Connect Team:</strong></p>
+            {services_section}
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+            <p style="margin: 5px 0; font-size: 13px; color: #64748b;">Current SEO Health Score: {seos_score_display := seo_score}/100 | Load Speed: {load_speed} | Security: {https_status}</p>
         </div>
-        <p>If you're noticing vulnerabilities like missing HTTPS or want to push your SEO score to a 100/100, we can help fix these right away.</p>
+
+        <p>By transitioning from manual record-keeping and disjointed workflows to our unified ecosystem, your organization can eliminate administrative bottlenecks, secure customer/student data, and drive automated growth.</p>
+        <p>Let's schedule a quick introductory demo to show how our systems can be deployed for your organization. Reply directly to this email to get started.</p>
         <p>Best regards,<br>
         <strong>JEdge Connect Team</strong><br>
         <a href="https://johnnyedgelimited.com" style="color: #2563eb;">johnnyedgelimited.com</a></p>
@@ -49,14 +60,15 @@ def generate_audit_html(target_url: str, seo_score: int, load_speed: str, has_ht
     """
     return html_content
 
-def send_audit_email(client_email: str, client_name: str, audit_report_html: str, api_key: str):
+def send_custom_email(client_email: str, client_name: str, services_list: list, html_body: str, api_key: str):
     try:
         resend.api_key = api_key
+        service_titles = ", ".join(services_list) if services_list else "Digital Solutions"
         params = {
             "from": "JEdge Connect <connect@johnnyedgelimited.com>",
             "to": [client_email],
-            "subject": f"Website & SEO Audit Report for {client_name}",
-            "html": audit_report_html,
+            "subject": f"Software Solutions Proposal ({service_titles}) for {client_name}",
+            "html": html_body,
         }
         email = resend.Emails.send(params)
         return True, email
@@ -219,7 +231,7 @@ else:
         "📝 Manual Outreach", 
         "🌍 Live Maps Scraper", 
         "🔍 SEO & Health Audit",
-        "📊 Kanban Pipeline", 
+        "📊 Pipeline & Service Studio", 
         "⏰ Reminders & Tasks",
         "📂 Saved History",
         "📁 Bulk CSV Upload",
@@ -466,10 +478,10 @@ else:
                             st.error(f"Error generating pitch: {e}")
 
     with tab4:
-        st.subheader("📊 Sales Pipeline Kanban Board & Outreach Studio")
-        st.markdown("Manage pipeline stages, preview audit reports directly inside cards, and send with full visibility.")
+        st.subheader("📊 Pipeline & Multi-Service Studio")
+        st.markdown("Select a lead, check the specific services/solutions you want to offer them, preview the tailored proposal, and dispatch it.")
         
-        if st.button("🔄 Refresh Kanban Board"):
+        if st.button("🔄 Refresh Pipeline Leads"):
             st.rerun()
 
         try:
@@ -479,13 +491,13 @@ else:
             
             if response.status_code == 200:
                 documents = response.json().get("documents", [])
-                user_leads = []
+                pipeline_leads = []
                 
                 for doc in documents:
                     fields = doc.get("fields", {})
                     if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
                         doc_path = doc.get("name", "")
-                        user_leads.append({
+                        pipeline_leads.append({
                             "id": doc_path.split("/")[-1],
                             "Company": fields.get("title", {}).get("stringValue", "N/A"),
                             "Category": fields.get("category", {}).get("stringValue", "N/A"),
@@ -495,85 +507,93 @@ else:
                             "Status": fields.get("status", {}).get("stringValue", "New Lead")
                         })
                 
-                if user_leads:
-                    stages = ["New Lead", "Contacted", "Meeting Booked", "Converted"]
-                    cols = st.columns(len(stages))
-                    
-                    for idx, stage in enumerate(stages):
-                        with cols[idx]:
-                            st.markdown(f"### {stage}")
-                            stage_leads = [l for l in user_leads if l["Status"] == stage]
-                            st.caption(f"{len(stage_leads)} leads")
-                            
-                            for lead in stage_leads:
-                                with st.container(border=True):
-                                    st.markdown(f"**{lead['Company']}**")
-                                    st.text(f"📞 {lead['Phone']}")
-                                    st.text(f"✉️ {lead['Email']}")
-                                    
-                                    # Preview and Send Audit Toggle inside each card
-                                    if lead['Email'] != 'N/A' and '@' in lead['Email'] and lead['Website'] != 'N/A':
-                                        with st.expander("🔍 Preview Audit Email"):
-                                            # Quick preview calculation
-                                            preview_audit = analyze_website_health(lead['Website'])
-                                            preview_html = generate_audit_html(
-                                                target_url=lead['Website'],
-                                                seo_score=preview_audit['score'],
-                                                load_speed=preview_audit['load_time'],
-                                                has_https=preview_audit['https']
-                                            )
-                                            st.markdown("**Subject:** Website & SEO Audit Report")
-                                            st.components.v1.html(preview_html, height=250, scrolling=True)
+                if pipeline_leads:
+                    lead_options = {f"{l['Company']} - {l['Email']} ({l['Status']})": l for l in pipeline_leads}
+                    selected_label = st.selectbox("Select Target Lead for Proposal", list(lead_options.keys()))
+                    selected_lead = lead_options[selected_label]
 
-                                            if st.button(f"🚀 Confirm & Send Audit", key=f"confirm_audit_{lead['id']}"):
-                                                if not resend_key:
-                                                    st.error("Please enter your Resend API Key in the sidebar.")
-                                                else:
-                                                    with st.spinner("Dispatching audit report..."):
-                                                        success, res_obj = send_audit_email(
-                                                            client_email=lead['Email'], 
-                                                            client_name=lead['Company'], 
-                                                            audit_report_html=preview_html,
-                                                            api_key=resend_key
-                                                        )
-                                                        if success:
-                                                            st.success("Audit email sent successfully!")
-                                                            # Move status to 'Contacted'
-                                                            patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
-                                                            patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
-                                                            requests.patch(patch_url, headers=headers, json=patch_payload)
-                                                            time.sleep(0.5)
-                                                            st.rerun()
-                                                        else:
-                                                            st.error(f"Failed: {res_obj}")
+                    st.markdown("### 🛠️ Select Services to Include in Proposal:")
+                    col_chk1, col_chk2 = st.columns(2)
+                    with col_chk1:
+                        service_erp = st.checkbox("🏢 Full ERP Software Solutions", value=True)
+                        service_crm = st.checkbox("🤝 CRM Management & Lead Tracking", value=True)
+                        service_auto = st.checkbox("⚙️ Full Operations Automation", value=True)
+                    with col_chk2:
+                        service_book = st.checkbox("📊 Digital Bookkeeping & Record Keeping", value=False)
+                        service_web = st.checkbox("🌐 Custom Web & Mobile App Development", value=False)
+                        service_audit = st.checkbox("🔍 SEO & Website Health Optimization", value=True)
 
-                                    new_status = st.selectbox(
-                                        "Move to:", 
-                                        stages, 
-                                        index=stages.index(stage), 
-                                        key=f"status_{lead['id']}"
+                    # Aggregate selected services into a list
+                    chosen_services = []
+                    if service_erp: chosen_services.append("Full ERP Software Solutions")
+                    if service_crm: chosen_services.append("CRM Management & Lead Tracking")
+                    if service_auto: chosen_services.append("Full Operations Automation")
+                    if service_book: chosen_services.append("Digital Bookkeeping & Record Keeping")
+                    if service_web: chosen_services.append("Custom Web & Mobile App Development")
+                    if service_audit: chosen_services.append("SEO & Website Health Optimization")
+
+                    st.markdown("---")
+                    col_info1, col_info2, col_info3 = st.columns(3)
+                    with col_info1:
+                        st.markdown(f"**Company:** {selected_lead['Company']}")
+                        st.markdown(f"**Category:** {selected_lead['Category']}")
+                    with col_info2:
+                        st.markdown(f"**Email:** `{selected_lead['Email']}`")
+                        st.markdown(f"**Website:** `{selected_lead['Website']}`")
+                    with col_info3:
+                        st.markdown(f"**Current Status:** `{selected_lead['Status']}`")
+
+                    if selected_lead['Email'] == 'N/A' or '@' not in selected_lead['Email']:
+                        st.warning("⚠️ This lead does not have a valid email address.")
+                    elif selected_lead['Website'] == 'N/A':
+                        st.warning("⚠️ This lead does not have a valid website URL to analyze.")
+                    else:
+                        st.markdown(f"### 📋 Full-Screen Proposal Preview")
+                        with st.spinner("Analyzing website and generating customized multi-service proposal..."):
+                            audit_res = analyze_website_health(selected_lead['Website'])
+                            full_html_report = generate_custom_service_html(
+                                target_url=selected_lead['Website'],
+                                company_name=selected_lead['Company'],
+                                selected_services=chosen_services,
+                                seo_score=audit_res['score'],
+                                load_speed=audit_res['load_time'],
+                                has_https=audit_res['https']
+                            )
+                        
+                        # Render full width preview
+                        st.components.v1.html(full_html_report, height=400, scrolling=True)
+
+                        if st.button("🚀 Confirm & Dispatch Multi-Service Proposal"):
+                            if not resend_key:
+                                st.error("Please enter your Resend API Key in the sidebar.")
+                            elif not chosen_services:
+                                st.warning("Please select at least one service offering to include in the proposal.")
+                            else:
+                                with st.spinner("Dispatching multi-service proposal via Resend..."):
+                                    success, res_obj = send_custom_email(
+                                        client_email=selected_lead['Email'],
+                                        client_name=selected_lead['Company'],
+                                        services_list=chosen_services,
+                                        html_body=full_html_report,
+                                        api_key=resend_key
                                     )
-                                    
-                                    if new_status != stage:
-                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
-                                        patch_payload = {
-                                            "fields": {
-                                                "status": {"stringValue": new_status}
-                                            }
-                                        }
-                                        patch_res = requests.patch(patch_url, headers=headers, json=patch_payload)
-                                        if patch_res.status_code == 200:
-                                            st.success(f"Moved to {new_status}!")
-                                            time.sleep(0.5)
-                                            st.rerun()
-                                        else:
-                                            st.error("Failed to update status.")
+                                    if success:
+                                        st.success(f"Proposal successfully sent to {selected_lead['Email']}!")
+                                        
+                                        # Update status to 'Contacted' in Firestore
+                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{selected_lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
+                                        patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
+                                        requests.patch(patch_url, headers=headers, json=patch_payload)
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Failed to send email: {res_obj}")
                 else:
                     st.info("No saved leads found in your pipeline yet.")
             else:
-                st.error("Failed to fetch pipeline from Firestore.")
+                st.error("Failed to fetch pipeline leads from Firestore.")
         except Exception as e:
-            st.error(f"Error loading Kanban board: {e}")
+            st.error(f"Error loading pipeline studio: {e}")
 
     with tab5:
         st.subheader("⏰ Reminders & Task Manager")
