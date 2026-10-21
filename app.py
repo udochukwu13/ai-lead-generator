@@ -515,7 +515,7 @@ else:
                     st.markdown("### 🛠️ Select Services to Include in Proposal:")
                     col_chk1, col_chk2 = st.columns(2)
                     with col_chk1:
-                        service_erp = st.checkbox("🏢 Full ERP Software Solutions", value=True)
+                        service_school_erp = st.checkbox("🏫 School Mgt Software Solution (ERP)", value=True)
                         service_crm = st.checkbox("🤝 CRM Management & Lead Tracking", value=True)
                         service_auto = st.checkbox("⚙️ Full Operations Automation", value=True)
                         service_games = st.checkbox("🎮 Academic & Educational Games Suite (All Subjects/Levels)", value=True)
@@ -526,7 +526,7 @@ else:
 
                     # Aggregate selected services into a list
                     chosen_services = []
-                    if service_erp: chosen_services.append("Full ERP Software Solutions")
+                    if service_school_erp: chosen_services.append("School Mgt Software Solution (ERP)")
                     if service_crm: chosen_services.append("CRM Management & Lead Tracking")
                     if service_auto: chosen_services.append("Full Operations Automation")
                     if service_games: chosen_services.append("Academic & Educational Games Suite (Covering All Subjects & Levels)")
