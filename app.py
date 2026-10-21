@@ -202,6 +202,10 @@ else:
         st.sidebar.success("🌟 Account Status: **PRO UNLIMITED**")
     else:
         st.sidebar.warning(f"💡 Free Tier: **{5 - st.session_state['free_messages_sent']} / 5 Free Broadcasts Left**")
+        if st.sidebar.button("🚀 Upgrade to Pro ($15/mo)"):
+            st.session_state["is_pro"] = True
+            st.success("🎉 Account upgraded to Pro Unlimited!")
+            st.rerun()
 
     if st.sidebar.button("Log Out"):
         st.session_state["user"] = None
@@ -462,8 +466,6 @@ else:
                         st.markdown(f"### 📋 Full-Screen Proposal Preview")
                         with st.spinner("Analyzing website and generating customized multi-service proposal..."):
                             audit_res = analyze_website_health(selected_lead['Website'])
-                            from generator import generate_custom_service_html if 'generate_custom_service_html' in globals() else lambda *args, **kwargs: ""
-                            # Using inline generator helper defined at the top
                             full_html_report = generate_multimedia_campaign_html(
                                 campaign_title=f"Partnership & Software Solutions Proposal for {selected_lead['Company']}",
                                 message_body=f"We reviewed your website ({selected_lead['Website']}) and identified major opportunities to scale your operations through advanced software integration.",
