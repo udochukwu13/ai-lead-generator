@@ -7,9 +7,7 @@ import re
 import pandas as pd
 from datetime import date
 import resend
-
-# Securely load Resend API key from Streamlit secrets or environment variables
-resend.api_key = st.secrets.get("RESEND_API_KEY", os.environ.get("RESEND_API_KEY", ""))
+from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health
 
 # ==========================================
 # 0. SAFE CONVERSION & AUDIT HELPERS
@@ -51,8 +49,9 @@ def generate_audit_html(target_url: str, seo_score: int, load_speed: str, has_ht
     """
     return html_content
 
-def send_audit_email(client_email: str, client_name: str, audit_report_html: str):
+def send_audit_email(client_email: str, client_name: str, audit_report_html: str, api_key: str):
     try:
+        resend.api_key = api_key
         params = {
             "from": "JEdge Connect <connect@johnnyedgelimited.com>",
             "to": [client_email],
@@ -401,22 +400,6 @@ else:
                                             st.markdown(f"**Website:** [{website}]({website})")
                                         else:
                                             st.write("**Website:** N/A")
-
-                                        if email != 'N/A' and website != 'N/A':
-                                            if st.button(f"📧 Send Initial Audit Report to {item['title']}", key=f"send_audit_{idx}"):
-                                                with st.spinner(f"Running quick health check and dispatching audit report to {email}..."):
-                                                    audit_res = analyze_website_health(website)
-                                                    html_report = generate_audit_html(
-                                                        target_url=website,
-                                                        seo_score=audit_res['score'],
-                                                        load_speed=audit_res['load_time'],
-                                                        has_https=audit_res['https']
-                                                    )
-                                                    success, res_obj = send_audit_email(client_email=email, client_name=item['title'], audit_report_html=html_report)
-                                                    if success:
-                                                        st.success(f"Audit report successfully dispatched to {email}!")
-                                                    else:
-                                                        st.error(f"Failed to dispatch audit report: {res_obj}")
                                         
                                         st.markdown("---")
                                 else:
@@ -483,8 +466,8 @@ else:
                             st.error(f"Error generating pitch: {e}")
 
     with tab4:
-        st.subheader("📊 Sales Pipeline Kanban Board")
-        st.markdown("Track your prospecting progress across different pipeline stages.")
+        st.subheader("📊 Sales Pipeline Kanban Board & Outreach Studio")
+        st.markdown("Manage pipeline stages, preview audit reports directly inside cards, and send with full visibility.")
         
         if st.button("🔄 Refresh Kanban Board"):
             st.rerun()
@@ -508,6 +491,7 @@ else:
                             "Category": fields.get("category", {}).get("stringValue", "N/A"),
                             "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
                             "Email": fields.get("email", {}).get("stringValue", "N/A"),
+                            "Website": fields.get("website", {}).get("stringValue", "N/A"),
                             "Status": fields.get("status", {}).get("stringValue", "New Lead")
                         })
                 
@@ -527,6 +511,42 @@ else:
                                     st.text(f"📞 {lead['Phone']}")
                                     st.text(f"✉️ {lead['Email']}")
                                     
+                                    # Preview and Send Audit Toggle inside each card
+                                    if lead['Email'] != 'N/A' and '@' in lead['Email'] and lead['Website'] != 'N/A':
+                                        with st.expander("🔍 Preview Audit Email"):
+                                            # Quick preview calculation
+                                            preview_audit = analyze_website_health(lead['Website'])
+                                            preview_html = generate_audit_html(
+                                                target_url=lead['Website'],
+                                                seo_score=preview_audit['score'],
+                                                load_speed=preview_audit['load_time'],
+                                                has_https=preview_audit['https']
+                                            )
+                                            st.markdown("**Subject:** Website & SEO Audit Report")
+                                            st.components.v1.html(preview_html, height=250, scrolling=True)
+
+                                            if st.button(f"🚀 Confirm & Send Audit", key=f"confirm_audit_{lead['id']}"):
+                                                if not resend_key:
+                                                    st.error("Please enter your Resend API Key in the sidebar.")
+                                                else:
+                                                    with st.spinner("Dispatching audit report..."):
+                                                        success, res_obj = send_audit_email(
+                                                            client_email=lead['Email'], 
+                                                            client_name=lead['Company'], 
+                                                            audit_report_html=preview_html,
+                                                            api_key=resend_key
+                                                        )
+                                                        if success:
+                                                            st.success("Audit email sent successfully!")
+                                                            # Move status to 'Contacted'
+                                                            patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
+                                                            patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
+                                                            requests.patch(patch_url, headers=headers, json=patch_payload)
+                                                            time.sleep(0.5)
+                                                            st.rerun()
+                                                        else:
+                                                            st.error(f"Failed: {res_obj}")
+
                                     new_status = st.selectbox(
                                         "Move to:", 
                                         stages, 
@@ -777,7 +797,7 @@ else:
                             if not resend_key:
                                 st.error("Please provide your Resend API Key in the sidebar.")
                             elif chosen_lead['Email'] == 'N/A' or '@' not in chosen_lead['Email']:
-                                st.warning("This lead does not have a valid email address.")
+                                st.warning("This lead has no valid email address.")
                             else:
                                 with st.spinner("Dispatching follow-up via Resend..."):
                                     res = send_outreach_email(chosen_lead['Email'], fu_subject, fu_editable_body, resend_key)
