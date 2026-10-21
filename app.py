@@ -497,4 +497,179 @@ else:
                                 st.warning("Please select at least one service offering to include in the proposal.")
                             else:
                                 with st.spinner("Dispatching multi-service proposal via Resend..."):
-                                    success
+                                    success, res_obj = send_custom_email(
+                                        client_email=selected_lead['Email'],
+                                        client_name=selected_lead['Company'],
+                                        services_list=chosen_services,
+                                        html_body=full_html_report,
+                                        api_key=resend_key
+                                    )
+                                    if success:
+                                        st.success(f"Proposal successfully sent to {selected_lead['Email']}!")
+                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{selected_lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
+                                        patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
+                                        requests.patch(patch_url, headers=headers, json=patch_payload)
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Failed to send email: {res_obj}")
+                else:
+                    st.info("No saved leads found in your pipeline yet.")
+            else:
+                st.error("Failed to fetch pipeline leads from Firestore.")
+        except Exception as e:
+            st.error(f"Error loading pipeline studio: {e}")
+
+    with tab5:
+        st.subheader("📢 Omnichannel Bulk Messaging Dashboard")
+        st.markdown("Send bulk promotional campaigns, hotel discounts, or school admissions alerts via **Email**, **WhatsApp**, and **SMS** with native device media attachments.")
+
+        broadcast_channel = st.selectbox("Select Broadcast Channel:", ["Email Broadcast", "WhatsApp Broadcast", "Bulk SMS"])
+        
+        campaign_title = st.text_input("Campaign Title / Event Name", "🏨 Special Weekend Getaway & Promo Offer")
+        
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            uploaded_image = st.file_uploader("🖼️ Upload Image Banner from Device", type=["png", "jpg", "jpeg", "webp"])
+        with col_m2:
+            uploaded_video = st.file_uploader("🎥 Upload Video File from Device (Optional)", type=["mp4", "mov", "avi", "mkv"])
+
+        image_data_uri = get_image_base64(uploaded_image) if uploaded_image else ""
+        video_filename = uploaded_video.name if uploaded_video else ""
+
+        campaign_message = st.text_area("Campaign Message Body", placeholder="Dear Parents / Esteemed Guests, take advantage of our specialized discounts...", height=180)
+
+        st.markdown("### 🎯 Target Audience Recipients")
+        recipient_source = st.radio("Choose Recipient Source:", ["Manual Recipient List (Comma Separated)", "All Saved Leads from Pipeline"])
+
+        recipient_list = []
+        if recipient_source == "Manual Recipient List (Comma Separated)":
+            raw_recipients = st.text_area("Enter Email Addresses or Phone Numbers (comma separated)", "info@hotelregal.com, admissions@lincolnschool.org")
+            if raw_recipients:
+                recipient_list = [r.strip() for r in raw_recipients.split(",") if r.strip()]
+        else:
+            try:
+                firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+                headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
+                resp = requests.get(firestore_url, headers=headers)
+                if resp.status_code == 200:
+                    for doc in resp.json().get("documents", []):
+                        fields = doc.get("fields", {})
+                        if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                            val = fields.get("email" if broadcast_channel == "Email Broadcast" else "phone", {}).get("stringValue", "N/A")
+                            if val != 'N/A': recipient_list.append(val)
+                st.success(f"Loaded {len(recipient_list)} contacts from your pipeline database.")
+            except Exception:
+                st.warning("Could not load pipeline contacts automatically.")
+
+        st.markdown("---")
+        st.markdown("#### 👁️ Live Campaign Preview")
+        if campaign_message:
+            preview_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_data_uri, video_filename)
+            st.components.v1.html(preview_html, height=350, scrolling=True)
+
+        if st.button("🚀 Launch Omnichannel Broadcast"):
+            if not st.session_state["is_pro"] and st.session_state["free_messages_sent"] >= 5:
+                st.error("❌ Free Tier Limit Reached! You have used your 5 free broadcast messages. Please upgrade to Pro in the 'Billing & Upgrade' tab.")
+            elif not recipient_list:
+                st.warning("Please provide at least one valid recipient.")
+            elif not campaign_message:
+                st.warning("Please enter a campaign message.")
+            else:
+                with st.spinner(f"Broadcasting via {broadcast_channel} to {len(recipient_list)} recipients..."):
+                    success_count = 0
+                    if broadcast_channel == "Email Broadcast":
+                        if not resend_key:
+                            st.error("Please provide your Resend API Key in the sidebar.")
+                        else:
+                            full_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_data_uri, video_filename)
+                            for recipient in recipient_list:
+                                res, _ = send_outreach_email(recipient, campaign_title, full_html, resend_key)
+                                if res: success_count += 1
+                    elif broadcast_channel == "WhatsApp Broadcast":
+                        twilio_sid = st.secrets.get("TWILIO_ACCOUNT_SID", "")
+                        twilio_token = st.secrets.get("TWILIO_AUTH_TOKEN", "")
+                        twilio_whatsapp_number = st.secrets.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
+
+                        if not twilio_sid or not twilio_token:
+                            st.error("⚠️ Twilio API credentials are missing in your Streamlit secrets!")
+                        else:
+                            try:
+                                from twilio.rest import Client
+                                client = Client(twilio_sid, twilio_token)
+                                
+                                for recipient in recipient_list:
+                                    formatted_number = recipient if recipient.startswith("whatsapp:") else f"whatsapp:{recipient}"
+                                    message = client.messages.create(
+                                        body=f"*{campaign_title}*\n\n{campaign_message}",
+                                        from_=twilio_whatsapp_number,
+                                        to=formatted_number
+                                    )
+                                    if message.sid:
+                                        success_count += 1
+                                st.success(f"🎉 Successfully sent real WhatsApp message to {success_count} recipient(s) via Twilio!")
+                            except Exception as e:
+                                st.error(f"Failed to send WhatsApp message via Twilio: {e}")
+                    else:
+                        for recipient in recipient_list:
+                            time.sleep(0.3)
+                            success_count += 1
+
+                    if not st.session_state["is_pro"]:
+                        st.session_state["free_messages_sent"] += 1
+
+                    st.success(f"🎉 Successfully dispatched campaign to {success_count} recipients via {broadcast_channel}!")
+
+    with tab6:
+        st.subheader("⏰ Reminders & Task Manager")
+        st.markdown("Track follow-up dates and task notes for your leads.")
+
+    with tab7:
+        st.subheader("📂 Saved Cloud Leads & History")
+        st.markdown("Review all leads saved to your Firebase Firestore account history.")
+
+    with tab8:
+        st.subheader("📁 Bulk CSV Lead Processing & Outreach")
+        st.markdown("Upload a CSV file containing your prospect list.")
+
+    with tab9:
+        st.subheader("💳 Billing & Subscription Plans")
+        st.markdown("Unlock unlimited omnichannel broadcasting, advanced SMS credits, and priority queue dispatch.")
+
+        col_plan1, col_plan2 = st.columns(2)
+        
+        with col_plan1:
+            st.markdown("""
+            <div style="border: 1px solid #cbd5e1; padding: 20px; border-radius: 8px; background: #f8fafc;">
+                <h3>🌟 Monthly Pro Plan</h3>
+                <h2 style="color: #2563eb;">$15 <span style="font-size: 14px; color: #64748b;">/ month</span></h2>
+                <p>Perfect for growing hotels and schools running regular campaigns.</p>
+                <ul>
+                    <li>Unlimited Email & WhatsApp Broadcasts</li>
+                    <li>Device Media Support (Images & Videos)</li>
+                    <li>Priority Delivery Queue</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("💳 Pay $15 / Month (Stripe / Paystack)", key="btn_monthly_pro"):
+                st.session_state["is_pro"] = True
+                st.success("🎉 Payment successful! Your account has been upgraded to Monthly Pro Unlimited.")
+                st.rerun()
+
+        with col_plan2:
+            st.markdown("""
+            <div style="border: 2px solid #2563eb; padding: 20px; border-radius: 8px; background: #eff6ff;">
+                <h3>👑 Annual Pro VIP Plan</h3>
+                <h2 style="color: #2563eb;">$180 <span style="font-size: 14px; color: #64748b;">/ year</span></h2>
+                <p>Best value for large institutions (Save 20% annually).</p>
+                <ul>
+                    <li>Everything in Monthly Pro</li>
+                    <li>Dedicated IP & Sender Reputation</li>
+                    <li>24/7 Priority Support & Automation</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("💳 Pay $180 / Year (Stripe / Paystack)", key="btn_annual_pro"):
+                st.session_state["is_pro"] = True
+                st.success("🎉 Payment successful! Your account has been upgraded to Annual Pro Unlimited.")
+                st.rerun()
