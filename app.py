@@ -449,17 +449,30 @@ else:
         st.subheader("🔍 Website SEO & Health Checker + Instant Revenue Pitch")
         audit_url = st.text_input("Enter Website URL to Audit", "https://example.com", key="audit_url_input")
         
-        if st.button("Run SEO Health Audit ⚡"):
+        col_aud1, col_aud2 = st.columns([1, 1])
+        with col_aud1:
+            run_audit_btn = st.button("Run SEO Health Audit ⚡")
+        with col_aud2:
+            scrape_email_btn = st.button("🔍 Scrape Contact Email from Website")
+
+        if run_audit_btn or scrape_email_btn:
             if not audit_url or audit_url == "https://example.com":
                 st.warning("Please enter a valid website URL.")
             else:
-                with st.spinner("Analyzing website performance..."):
-                    audit_result = analyze_website_health(audit_url)
-                    st.session_state["last_audit"] = audit_result
-                    st.session_state["audited_url"] = audit_url
-                    # Automatically crawl website for contact email if missing
-                    extracted_email = extract_emails_from_website(audit_url)
-                    st.session_state["extracted_audit_email"] = extracted_email
+                if run_audit_btn:
+                    with st.spinner("Analyzing website performance..."):
+                        audit_result = analyze_website_health(audit_url)
+                        st.session_state["last_audit"] = audit_result
+                        st.session_state["audited_url"] = audit_url
+                
+                if scrape_email_btn or run_audit_btn:
+                    with st.spinner("Scraping contact email from website..."):
+                        extracted_email = extract_emails_from_website(audit_url)
+                        st.session_state["extracted_audit_email"] = extracted_email
+                        if extracted_email != "N/A":
+                            st.success(f"Successfully scraped contact email: **{extracted_email}**")
+                        else:
+                            st.warning("No public email address found on the webpage. You can type or paste one manually below.")
 
         if "last_audit" in st.session_state:
             res = st.session_state["last_audit"]
@@ -473,10 +486,14 @@ else:
 
             st.markdown("---")
             st.subheader("✉️ Instant Tailored Revenue Outreach Dispatch")
-            st.markdown("Review or paste the contact email harvested from the website below, then dispatch your professional monetization pitch instantly.")
+            st.markdown("Review or edit the scraped contact email below, then dispatch your professional monetization pitch instantly.")
 
-            default_extracted_email = st.session_state.get("extracted_audit_email", "N/A")
-            target_audit_email = st.text_input("Target Website Contact Email (Auto-extracted or paste manually):", value=default_extracted_email if default_extracted_email != "N/A" else "")
+            default_extracted_email = st.session_state.get("extracted_audit_email", "")
+            target_audit_email = st.text_input(
+                "Target Website Contact Email (Scraped Automatically or Paste Manually):", 
+                value=default_extracted_email if default_extracted_email != "N/A" else "",
+                key="manual_target_audit_email"
+            )
 
             default_pitch_subject = f"Website Performance & Revenue Optimization Insights for {audited_site}"
             default_pitch_body = f"""Hello Team,
