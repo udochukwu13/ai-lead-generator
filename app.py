@@ -13,7 +13,7 @@ from generator import generate_outreach_email, generate_followup_email, send_out
 # ==========================================
 def safe_float(val, default=0.0):
     try:
-        if val is None or str(val).strip() == "":
+        if val is None or str(val).strip() == "" or str(val).lower() == "nan":
             return default
         return float(val)
     except Exception:
@@ -21,7 +21,7 @@ def safe_float(val, default=0.0):
 
 def safe_int(val, default=0):
     try:
-        if val is None or str(val).strip() == "":
+        if val is None or str(val).strip() == "" or str(val).lower() == "nan":
             return default
         return int(val)
     except Exception:
@@ -59,11 +59,11 @@ def sign_in(email, password):
     return response.json()
 
 def extract_emails_from_website(url):
-    if not url or url == 'N/A':
+    if not url or url == 'N/A' or str(url).lower() == 'nan':
         return "N/A"
     try:
-        if not url.startswith("http"):
-            url = "https://" + url
+        if not str(url).startswith("http"):
+            url = "https://" + str(url)
             
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         response = requests.get(url, headers=headers, timeout=5)
@@ -633,29 +633,37 @@ else:
             st.markdown("### 📋 Preview Uploaded Leads")
             st.dataframe(bulk_df.head())
 
-            required_columns = ['Company', 'Website', 'Email']
-            missing_cols = [col for col in required_columns if col not in bulk_df.columns]
+            st.success(f"CSV successfully loaded with {len(bulk_df)} prospects!")
 
-            if missing_cols:
-                st.warning(f"Your CSV is missing recommended columns: {missing_cols}. Please ensure your CSV has headers like Company, Website, and Email.")
-            else:
-                st.success(f"CSV successfully loaded with {len(bulk_df)} prospects!")
-
-                if st.button("🚀 Process & Save All Leads to Cloud"):
-                    with st.spinner("Processing bulk leads and saving to Firebase..."):
-                        success_count = 0
-                        for index, row in bulk_df.iterrows():
-                            lead_data = {
-                                "title": str(row.get('Company', 'N/A')),
-                                "categoryName": str(row.get('Category', 'B2B Prospect')),
-                                "totalScore": 75.0,
-                                "reviewsCount": 10,
-                                "address": str(row.get('Address', 'N/A')),
-                                "phone": str(row.get('Phone', 'N/A')),
-                                "website": str(row.get('Website', 'N/A')),
-                                "email": str(row.get('Email', 'N/A'))
-                            }
-                            save_lead_to_firestore(st.session_state["user"], lead_data, st.session_state["idToken"])
-                            success_count += 1
+            if st.button("🚀 Process & Save All Leads to Cloud"):
+                with st.spinner("Processing bulk leads and saving to Firebase..."):
+                    success_count = 0
+                    for index, row in bulk_df.iterrows():
+                        # Flexible mapping to support columns like 'title', 'Company', 'categoryName', etc.
+                        company = row.get('title') if 'title' in row and pd.notna(row.get('title')) else row.get('Company', 'N/A')
+                        category = row.get('categoryName') if 'categoryName' in row and pd.notna(row.get('categoryName')) else row.get('Category', 'B2B Prospect')
+                        score = row.get('totalScore') if 'totalScore' in row and pd.notna(row.get('totalScore')) else 75.0
+                        reviews = row.get('reviewsCount') if 'reviewsCount' in row and pd.notna(row.get('reviewsCount')) else row.get('Reviews', 10)
+                        address = row.get('address') if 'address' in row and pd.notna(row.get('address')) else row.get('Address', 'N/A')
+                        phone = row.get('phone') if 'phone' in row and pd.notna(row.get('phone')) else row.get('Phone', 'N/A')
+                        website = row.get('website') if 'website' in row and pd.notna(row.get('website')) else row.get('Website', 'N/A')
                         
-                        st.success(f"Successfully processed and saved {success_count} leads to your Firestore pipeline!")
+                        # Auto-hunt or check for email column
+                        email = row.get('email') if 'email' in row and pd.notna(row.get('email')) else row.get('Email', 'N/A')
+                        if email == 'N/A' or not email or str(email).lower() == 'nan':
+                            email = extract_emails_from_website(website)
+
+                        lead_data = {
+                            "title": str(company),
+                            "categoryName": str(category),
+                            "totalScore": safe_float(score),
+                            "reviewsCount": safe_int(reviews),
+                            "address": str(address),
+                            "phone": str(phone),
+                            "website": str(website),
+                            "email": str(email)
+                        }
+                        save_lead_to_firestore(st.session_state["user"], lead_data, st.session_state["idToken"])
+                        success_count += 1
+                    
+                    st.success(f"Successfully processed and saved {success_count} leads to your Firestore pipeline!")
