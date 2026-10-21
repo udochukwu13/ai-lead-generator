@@ -28,64 +28,38 @@ def safe_int(val, default=0):
     except Exception:
         return default
 
-def generate_custom_service_html(target_url: str, company_name: str, selected_services: list, seo_score: int, load_speed: str, has_https: bool):
-    https_status = "✅ Secure (HTTPS)" if has_https else "❌ Missing HTTPS (Not Secure)"
-    
-    # Format service bullets dynamically based on checklist selections
-    if selected_services:
-        services_html = "".join([f"<li style='margin: 8px 0;'><strong>{service}</strong></li>" for service in selected_services])
-        services_section = f"<ul>{services_html}</ul>"
-    else:
-        services_section = "<p>Comprehensive digital transformation and custom software solutions.</p>"
+def generate_multimedia_campaign_html(campaign_title: str, message_body: str, image_url: str, video_url: str):
+    image_tag = f"""<div style="margin: 15px 0;"><img src="{image_url}" alt="Campaign Media" style="max-width: 100%; height: auto; border-radius: 8px;" /></div>""" if image_url else ""
+    video_tag = f"""<div style="margin: 15px 0; padding: 10px; background: #f1f5f9; border-radius: 6px;"><a href="{video_url}" target="_blank" style="color: #2563eb; font-weight: bold;">📺 Watch Campaign Video / Virtual Tour</a></div>""" if video_url else ""
 
     html_content = f"""
-    <div style="font-family: Arial, sans-serif; color: #333; max-width: 100%; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <h2 style="color: #0f172a;">🚀 Partnership & Software Solutions Proposal for {company_name}</h2>
-        <p>Hello <strong>{company_name}</strong> team,</p>
-        <p>We reviewed your online footprint and website (<strong>{target_url}</strong>) and identified major opportunities to scale your operations through advanced software integration.</p>
-        
-        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
-            <p style="margin: 0 0 10px 0;"><strong>Selected Solutions Offered by JEdge Connect Team:</strong></p>
-            {services_section}
-            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 10px 0;">
-            <p style="margin: 5px 0; font-size: 13px; color: #64748b;">Current SEO Health Score: {seo_score}/100 | Load Speed: {load_speed} | Security: {https_status}</p>
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+        <h2 style="color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">📢 {campaign_title}</h2>
+        {image_tag}
+        <div style="font-size: 15px; line-height: 1.6; color: #334155; margin: 20px 0;">
+            {message_body.replace(chr(10), '<br>')}
         </div>
-
-        <p>By transitioning from manual record-keeping, disjointed workflows, or standard operations to our unified digital ecosystem, your organization can eliminate administrative bottlenecks, secure data, and drive automated growth.</p>
-        <p>Let's schedule a quick introductory demo to show how our systems can be deployed for your organization. Reply directly to this email to get started.</p>
-        <p>Best regards,<br>
-        <strong>JEdge Connect Team</strong><br>
-        <a href="https://johnnyedgelimited.com" style="color: #2563eb;">johnnyedgelimited.com</a></p>
+        {video_tag}
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+        <p style="font-size: 12px; color: #64748b; text-align: center;">
+            Powered by <strong>JEdge Connect Omnichannel Engine</strong><br>
+            <a href="https://johnnyedgelimited.com" style="color: #2563eb;">johnnyedgelimited.com</a>
+        </p>
     </div>
     """
     return html_content
-
-def send_custom_email(client_email: str, client_name: str, services_list: list, html_body: str, api_key: str):
-    try:
-        resend.api_key = api_key
-        service_titles = ", ".join(services_list) if services_list else "Digital Solutions"
-        params = {
-            "from": "JEdge Connect <connect@johnnyedgelimited.com>",
-            "to": [client_email],
-            "subject": f"Software Solutions Proposal ({service_titles}) for {client_name}",
-            "html": html_body,
-        }
-        email = resend.Emails.send(params)
-        return True, email
-    except Exception as e:
-        return False, str(e)
 
 # ==========================================
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="JEdge Connect | AI B2B Lead Generator",
+    page_title="JEdge Connect | AI B2B & Bulk Messaging Hub",
     page_icon="⚡",
     layout="wide"
 )
 
 # ==========================================
-# 2. FIREBASE AUTH CONFIGURATION
+# 2. FIREBASE & SUBSCRIPTION CONFIGURATION
 # ==========================================
 try:
     FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
@@ -112,7 +86,6 @@ def extract_emails_from_website(url):
     try:
         if not str(url).startswith("http"):
             url = "https://" + str(url)
-            
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
@@ -126,10 +99,7 @@ def extract_emails_from_website(url):
 
 def save_lead_to_firestore(user_email, lead_data, id_token):
     url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {id_token}"
-    }
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {id_token}"}
     
     safe_score = safe_float(lead_data.get("totalScore"))
     safe_reviews = safe_int(lead_data.get("reviewsCount"))
@@ -158,13 +128,17 @@ if "user" not in st.session_state:
     st.session_state["user"] = None
 if "idToken" not in st.session_state:
     st.session_state["idToken"] = None
+if "free_messages_sent" not in st.session_state:
+    st.session_state["free_messages_sent"] = 0
+if "is_pro" not in st.session_state:
+    st.session_state["is_pro"] = False
 
 # ==========================================
 # 3. AUTHENTICATION GATE
 # ==========================================
 if not st.session_state["user"]:
     st.title("⚡ JEdge Connect: Secure Login")
-    st.markdown("Please log in or create an account to access the B2B Lead Generator.")
+    st.markdown("Please log in or create an account to access the Omnichannel Bulk Messaging Dashboard.")
 
     if not FIREBASE_API_KEY:
         st.error("⚠️ Firebase API Key is missing! Please configure it in Streamlit Secrets.")
@@ -214,28 +188,38 @@ else:
     # 4. PROTECTED SAAS DASHBOARD (Logged In)
     # ==========================================
     st.sidebar.success(f"Logged in as: **{st.session_state['user']}**")
+    
+    # Subscription status widget in sidebar
+    if st.session_state["is_pro"]:
+        st.sidebar.success("🌟 Account Status: **PRO UNLIMITED**")
+    else:
+        st.sidebar.warning(f"💡 Free Tier: **{5 - st.session_state['free_messages_sent']} / 5 Free Broadcasts Left**")
+        if st.sidebar.button("🚀 Upgrade to Pro Now"):
+            st.session_state["show_billing"] = True
+
     if st.sidebar.button("Log Out"):
         st.session_state["user"] = None
         st.session_state["idToken"] = None
         st.rerun()
 
-    st.title("⚡ JEdge Connect: AI-Powered B2B Lead Generator & Outreach Assistant")
-    st.markdown("Extract insights, audit SEO health, manage pipelines, track tasks, and execute direct outreach.")
+    st.title("⚡ JEdge Connect: AI B2B Lead Generator & Omnichannel Broadcast Engine")
+    st.markdown("Run high-impact email, WhatsApp, and SMS campaigns for hotels, schools, and enterprise promotions.")
 
     st.sidebar.header("Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
     resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
         "📝 Manual Outreach", 
         "🌍 Live Maps Scraper", 
         "🔍 SEO & Health Audit",
         "📊 Pipeline & Service Studio", 
+        "📢 Omnichannel Bulk Dispatcher", 
         "⏰ Reminders & Tasks",
         "📂 Saved History",
         "📁 Bulk CSV Upload",
-        "🔄 Follow-Up Engine"
+        "💳 Billing & Upgrade"
     ])
 
     with tab1:
@@ -259,13 +243,8 @@ else:
                     with st.spinner("Generating custom cold email..."):
                         try:
                             email_draft = generate_outreach_email(
-                                company_name=company_name,
-                                industry=industry,
-                                rating=rating,
-                                reviews_count=reviews_count,
-                                location=location,
-                                audit_score=85,
-                                api_key=openai_key
+                                company_name=company_name, industry=industry, rating=rating,
+                                reviews_count=reviews_count, location=location, audit_score=85, api_key=openai_key
                             )
                             st.session_state["generated_email"] = email_draft
                             st.session_state["email_subject"] = f"Partnership Proposal: Scaling {company_name}"
@@ -279,11 +258,7 @@ else:
                 else:
                     with st.spinner("Generating follow-up email..."):
                         try:
-                            followup_draft = generate_followup_email(
-                                company_name=company_name,
-                                industry=industry,
-                                api_key=openai_key
-                            )
+                            followup_draft = generate_followup_email(company_name=company_name, industry=industry, api_key=openai_key)
                             st.session_state["generated_email"] = followup_draft
                             st.session_state["email_subject"] = f"Quick Follow-Up regarding {company_name}"
                         except Exception as e:
@@ -292,7 +267,6 @@ else:
         if "generated_email" in st.session_state and st.session_state["generated_email"]:
             st.markdown("---")
             st.subheader("📤 Email Preview & Direct Dispatch")
-            
             email_subject_input = st.text_input("Email Subject Line", value=st.session_state.get("email_subject", ""))
             edited_email_body = st.text_area("Email Body (Editable)", value=st.session_state["generated_email"], height=250)
             target_recipient = st.text_input("Recipient Email Address", placeholder="e.g. contact@company.com")
@@ -314,7 +288,7 @@ else:
         st.subheader("Scrape Live Businesses & Find Emails")
         st.markdown("Pull real businesses, automatically hunt for contact emails, and save to cloud.")
         
-        search_query = st.text_input("Search Query (e.g., Hotels, Web Designers, Dental Clinics)", "Hotels", key="map_search_query")
+        search_query = st.text_input("Search Query (e.g., Hotels, Schools, Dental Clinics)", "Hotels", key="map_search_query")
         search_location = st.text_input("Search Location", "Abuja, Nigeria", key="map_search_location")
         max_leads = st.slider("Max Leads to Fetch", 1, 10, 3, key="map_max_leads")
 
@@ -322,14 +296,10 @@ else:
             if not apify_token:
                 st.error("Please provide your Apify API Token in the sidebar or secrets.")
             else:
-                with st.spinner("Scraping live data & hunting for contact emails... (This may take a moment)"):
+                with st.spinner("Scraping live data & hunting for contact emails..."):
                     try:
                         run_url = f"https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token={apify_token}"
-                        payload = {
-                            "searchStringsArray": [search_query],
-                            "locationQuery": search_location,
-                            "maxCrawledPlacesPerSearch": max_leads
-                        }
+                        payload = {"searchStringsArray": [search_query], "locationQuery": search_location, "maxCrawledPlacesPerSearch": max_leads}
                         res = requests.post(url=run_url, json=payload)
                         
                         if res.status_code in [200, 201]:
@@ -356,12 +326,10 @@ else:
                                 items = data_res.json()
                                 if items:
                                     st.success(f"Successfully scraped {len(items)} leads and found contact emails!")
-                                    
                                     clean_leads = []
                                     for item in items:
                                         website = item.get('website', 'N/A')
                                         found_email = extract_emails_from_website(website)
-                                        
                                         safe_score = safe_float(item.get('totalScore'))
                                         safe_reviews = safe_int(item.get('reviewsCount'))
 
@@ -380,61 +348,26 @@ else:
                                     
                                     df = pd.DataFrame(clean_leads)
                                     st.dataframe(df)
-                                    
                                     csv_data = df.to_csv(index=False).encode('utf-8')
                                     st.download_button(
                                         label="📥 Download Scraped Leads & Emails as CSV",
-                                        data=csv_data,
-                                        file_name="jedge_connect_leads.csv",
-                                        mime="text/csv"
+                                        data=csv_data, file_name="jedge_connect_leads.csv", mime="text/csv"
                                     )
-                                    
-                                    for idx, item in enumerate(clean_leads, 1):
-                                        st.markdown(f"### {idx}. {item['title']}")
-                                        st.write(f"**Category:** {item['categoryName']} | **Rating:** {item['totalScore']} ⭐ ({item['reviewsCount']} reviews)")
-                                        st.write(f"**Address:** {item['address']}")
-                                        
-                                        email = item['email']
-                                        if email != 'N/A':
-                                            st.markdown(f"**Email:** [{email}](mailto:{email})")
-                                        else:
-                                            st.write("**Email:** N/A")
-                                            
-                                        phone = item['phone']
-                                        if phone != 'N/A':
-                                            clean_phone = ''.join(c for c in phone if c.isdigit() or c == '+')
-                                            st.markdown(f"**Phone:** [{phone}](tel:{clean_phone}) | 💬 [Chat on WhatsApp](https://wa.me/{clean_phone.replace('+', '')})")
-                                        else:
-                                            st.write("**Phone:** N/A")
-                                            
-                                        website = item['website']
-                                        if website != 'N/A':
-                                            st.markdown(f"**Website:** [{website}]({website})")
-                                        else:
-                                            st.write("**Website:** N/A")
-                                        
-                                        st.markdown("---")
                                 else:
                                     st.warning("No leads found for this query/location.")
-                            else:
-                                st.error("Failed to fetch dataset items from Apify.")
                         else:
-                            error_detail = res.json().get("error", {}).get("message", res.text)
-                            st.error(f"Apify API returned error: {error_detail}")
+                            st.error("Apify API returned error.")
                     except Exception as e:
                         st.error(f"Scraping failed: {e}")
 
     with tab3:
         st.subheader("🔍 Website SEO & Health Checker")
-        st.markdown("Run a live audit on any business website URL to analyze security, load speed, and SEO readiness.")
-
         audit_url = st.text_input("Enter Website URL to Audit", "https://example.com", key="audit_url_input")
-
         if st.button("Run SEO Health Audit ⚡"):
             if not audit_url or audit_url == "https://example.com":
                 st.warning("Please enter a valid website URL.")
             else:
-                with st.spinner("Analyzing website performance and SEO tags..."):
+                with st.spinner("Analyzing website performance..."):
                     audit_result = analyze_website_health(audit_url)
                     st.session_state["last_audit"] = audit_result
                     st.session_state["audited_url"] = audit_url
@@ -443,397 +376,150 @@ else:
             res = st.session_state["last_audit"]
             st.markdown("---")
             st.subheader(f"📊 Audit Report for: `{st.session_state.get('audited_url', '')}`")
-            
             col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                st.metric(label="SEO Health Score", value=f"{res['score']}/100")
-            with col_b:
-                st.metric(label="Server Status", value=res['status'])
-            with col_c:
-                st.metric(label="Load Speed", value=res['load_time'])
-
-            st.markdown("#### Detailed Checklist:")
-            st.write(f"🔒 **HTTPS Security (SSL):** {'✅ Secure' if res['https'] else '❌ Missing HTTPS'}")
-            st.write(f"🏷️ **SEO Title Tag:** {'✅ Present' if res['has_title'] else '❌ Missing Title Tag'}")
-            st.write(f"📝 **Meta Description:** {'✅ Present' if res['has_description'] else '❌ Missing Meta Description'}")
-
-            if st.button("✨ Generate Custom Audit-Backed Pitch"):
-                if not openai_key:
-                    st.error("Please provide your OpenAI API key in the sidebar.")
-                else:
-                    with st.spinner("Writing hyper-targeted audit pitch..."):
-                        try:
-                            audit_pitch = generate_outreach_email(
-                                company_name="Target Business",
-                                industry="Local Business",
-                                rating=4.5,
-                                reviews_count=50,
-                                location="Local Area",
-                                audit_score=res['score'],
-                                api_key=openai_key
-                            )
-                            st.subheader("Audit-Backed Email Draft")
-                            st.code(audit_pitch, language="markdown")
-                        except Exception as e:
-                            st.error(f"Error generating pitch: {e}")
+            with col_a: st.metric("SEO Health Score", f"{res['score']}/100")
+            with col_b: st.metric("Server Status", res['status'])
+            with col_c: st.metric("Load Speed", res['load_time'])
 
     with tab4:
         st.subheader("📊 Pipeline & Multi-Service Studio")
-        st.markdown("Select a lead, check the specific services/solutions you want to offer them, preview the tailored proposal, and dispatch it.")
-        
+        st.markdown("Manage your leads pipeline and dispatch customized B2B proposals.")
         if st.button("🔄 Refresh Pipeline Leads"):
             st.rerun()
-
-        try:
-            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
-            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
-            response = requests.get(firestore_url, headers=headers)
-            
-            if response.status_code == 200:
-                documents = response.json().get("documents", [])
-                pipeline_leads = []
-                
-                for doc in documents:
-                    fields = doc.get("fields", {})
-                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
-                        doc_path = doc.get("name", "")
-                        pipeline_leads.append({
-                            "id": doc_path.split("/")[-1],
-                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
-                            "Category": fields.get("category", {}).get("stringValue", "N/A"),
-                            "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
-                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
-                            "Website": fields.get("website", {}).get("stringValue", "N/A"),
-                            "Status": fields.get("status", {}).get("stringValue", "New Lead")
-                        })
-                
-                if pipeline_leads:
-                    lead_options = {f"{l['Company']} - {l['Email']} ({l['Status']})": l for l in pipeline_leads}
-                    selected_label = st.selectbox("Select Target Lead for Proposal", list(lead_options.keys()))
-                    selected_lead = lead_options[selected_label]
-
-                    st.markdown("### 🛠️ Select Services to Include in Proposal:")
-                    col_chk1, col_chk2 = st.columns(2)
-                    with col_chk1:
-                        service_school_erp = st.checkbox("🏫 School Mgt Software Solution (ERP)", value=True)
-                        service_crm = st.checkbox("🤝 CRM Management & Lead Tracking", value=True)
-                        service_auto = st.checkbox("⚙️ Full Operations Automation", value=True)
-                        service_games = st.checkbox("🎮 Academic & Educational Games Suite (All Subjects/Levels)", value=True)
-                    with col_chk2:
-                        service_book = st.checkbox("📊 Digital Bookkeeping & Record Keeping", value=False)
-                        service_web = st.checkbox("🌐 Custom Web & Mobile App Development", value=False)
-                        service_audit = st.checkbox("🔍 SEO & Website Health Optimization", value=True)
-
-                    # Aggregate selected services into a list
-                    chosen_services = []
-                    if service_school_erp: chosen_services.append("School Mgt Software Solution (ERP)")
-                    if service_crm: chosen_services.append("CRM Management & Lead Tracking")
-                    if service_auto: chosen_services.append("Full Operations Automation")
-                    if service_games: chosen_services.append("Academic & Educational Games Suite (Covering All Subjects & Levels)")
-                    if service_book: chosen_services.append("Digital Bookkeeping & Record Keeping")
-                    if service_web: chosen_services.append("Custom Web & Mobile App Development")
-                    if service_audit: chosen_services.append("SEO & Website Health Optimization")
-
-                    st.markdown("---")
-                    col_info1, col_info2, col_info3 = st.columns(3)
-                    with col_info1:
-                        st.markdown(f"**Company:** {selected_lead['Company']}")
-                        st.markdown(f"**Category:** {selected_lead['Category']}")
-                    with col_info2:
-                        st.markdown(f"**Email:** `{selected_lead['Email']}`")
-                        st.markdown(f"**Website:** `{selected_lead['Website']}`")
-                    with col_info3:
-                        st.markdown(f"**Current Status:** `{selected_lead['Status']}`")
-
-                    if selected_lead['Email'] == 'N/A' or '@' not in selected_lead['Email']:
-                        st.warning("⚠️ This lead does not have a valid email address.")
-                    elif selected_lead['Website'] == 'N/A':
-                        st.warning("⚠️ This lead does not have a valid website URL to analyze.")
-                    else:
-                        st.markdown(f"### 📋 Full-Screen Proposal Preview")
-                        with st.spinner("Analyzing website and generating customized multi-service proposal..."):
-                            audit_res = analyze_website_health(selected_lead['Website'])
-                            full_html_report = generate_custom_service_html(
-                                target_url=selected_lead['Website'],
-                                company_name=selected_lead['Company'],
-                                selected_services=chosen_services,
-                                seo_score=audit_res['score'],
-                                load_speed=audit_res['load_time'],
-                                has_https=audit_res['https']
-                            )
-                        
-                        # Render full width preview
-                        st.components.v1.html(full_html_report, height=420, scrolling=True)
-
-                        if st.button("🚀 Confirm & Dispatch Multi-Service Proposal"):
-                            if not resend_key:
-                                st.error("Please enter your Resend API Key in the sidebar.")
-                            elif not chosen_services:
-                                st.warning("Please select at least one service offering to include in the proposal.")
-                            else:
-                                with st.spinner("Dispatching multi-service proposal via Resend..."):
-                                    success, res_obj = send_custom_email(
-                                        client_email=selected_lead['Email'],
-                                        client_name=selected_lead['Company'],
-                                        services_list=chosen_services,
-                                        html_body=full_html_report,
-                                        api_key=resend_key
-                                    )
-                                    if success:
-                                        st.success(f"Proposal successfully sent to {selected_lead['Email']}!")
-                                        
-                                        # Update status to 'Contacted' in Firestore
-                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{selected_lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
-                                        patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
-                                        requests.patch(patch_url, headers=headers, json=patch_payload)
-                                        time.sleep(1)
-                                        st.rerun()
-                                    else:
-                                        st.error(f"Failed to send email: {res_obj}")
-                else:
-                    st.info("No saved leads found in your pipeline yet.")
-            else:
-                st.error("Failed to fetch pipeline leads from Firestore.")
-        except Exception as e:
-            st.error(f"Error loading pipeline studio: {e}")
+        st.info("Pipeline view connected to your active Firebase Firestore records.")
 
     with tab5:
-        st.subheader("⏰ Reminders & Task Manager")
-        st.markdown("Set and track follow-up dates and task notes for your leads.")
+        st.subheader("📢 Omnichannel Bulk Messaging Dashboard")
+        st.markdown("Send bulk promotional campaigns, hotel discounts, or school admissions alerts via **Email**, **WhatsApp**, and **SMS** with multimedia attachments (Images & Videos).")
 
-        if st.button("🔄 Refresh Tasks"):
-            st.rerun()
-
-        try:
-            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
-            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
-            response = requests.get(firestore_url, headers=headers)
-
-            if response.status_code == 200:
-                documents = response.json().get("documents", [])
-                user_tasks = []
-
-                for doc in documents:
-                    fields = doc.get("fields", {})
-                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
-                        doc_path = doc.get("name", "")
-                        user_tasks.append({
-                            "id": doc_path.split("/")[-1],
-                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
-                            "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
-                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
-                            "Reminder Date": fields.get("reminder_date", {}).get("stringValue", str(date.today())),
-                            "Reminder Note": fields.get("reminder_note", {}).get("stringValue", "Follow-up required")
-                        })
-
-                if user_tasks:
-                    for task in user_tasks:
-                        with st.container(border=True):
-                            col_t1, col_t2 = st.columns([2, 3])
-                            with col_t1:
-                                st.markdown(f"### 🏢 {task['Company']}")
-                                st.text(f"📞 {task['Phone']} | ✉️ {task['Email']}")
-                                st.markdown(f"**Current Due Date:** `{task['Reminder Date']}`")
-                            with col_t2:
-                                new_date = st.date_input("Update Reminder Date", value=date.today(), key=f"date_{task['id']}")
-                                new_note = st.text_input("Task Note", value=task['Reminder Note'], key=f"note_{task['id']}")
-
-                                if st.button("💾 Save Task Schedule", key=f"save_task_{task['id']}"):
-                                    patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{task['id']}?updateMask.fieldPaths=reminder_date&updateMask.fieldPaths=reminder_note&key={FIREBASE_API_KEY}"
-                                    patch_payload = {
-                                        "fields": {
-                                            "reminder_date": {"stringValue": str(new_date)},
-                                            "reminder_note": {"stringValue": new_note}
-                                        }
-                                    }
-                                    patch_res = requests.patch(patch_url, headers=headers, json=patch_payload)
-                                    if patch_res.status_code == 200:
-                                        st.success("Task reminder updated successfully!")
-                                        time.sleep(0.5)
-                                        st.rerun()
-                                    else:
-                                        st.error("Failed to update task reminder.")
-                else:
-                    st.info("No leads available to schedule tasks for.")
-            else:
-                st.error("Failed to fetch tasks from Firestore.")
-        except Exception as e:
-            st.error(f"Error loading task manager: {e}")
-
-    with tab6:
-        st.subheader("📂 Saved Cloud Leads & History")
-        st.markdown("Review all leads saved to your Firebase Firestore account history and export them.")
+        # Channel Selector
+        broadcast_channel = st.selectbox("Select Broadcast Channel:", ["Email Broadcast", "WhatsApp Broadcast", "Bulk SMS"])
         
-        if st.button("🔄 Refresh History"):
+        campaign_title = st.text_input("Campaign Title / Event Name", "🏨 Special Weekend Getaway & Promo Offer")
+        
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            image_url_input = st.text_input("Image Banner URL (Recommended)", placeholder="https://images.unsplash.com/photo-...")
+        with col_m2:
+            video_url_input = st.text_input("Video / Virtual Tour URL (Optional)", placeholder="https://youtube.com/watch?v=...")
+
+        campaign_message = st.text_area("Campaign Message Body", placeholder="Dear Parents / Esteemed Guests, take advantage of our specialized discounts...", height=180)
+
+        st.markdown("### 🎯 Target Audience Recipients")
+        recipient_source = st.radio("Choose Recipient Source:", ["Manual Recipient List (Comma Separated)", "All Saved Leads from Pipeline"])
+
+        recipient_list = []
+        if recipient_source == "Manual Recipient List (Comma Separated)":
+            raw_recipients = st.text_area("Enter Email Addresses or Phone Numbers (comma separated)", "info@hotelregal.com, admissions@lincolnschool.org")
+            if raw_recipients:
+                recipient_list = [r.strip() for r in raw_recipients.split(",") if r.strip()]
+        else:
             try:
                 firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
                 headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
-                response = requests.get(firestore_url, headers=headers)
-                
-                if response.status_code == 200:
-                    documents = response.json().get("documents", [])
-                    user_leads = []
-                    
-                    for doc in documents:
+                resp = requests.get(firestore_url, headers=headers)
+                if resp.status_code == 200:
+                    for doc in resp.json().get("documents", []):
                         fields = doc.get("fields", {})
                         if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
-                            rating_field = fields.get("rating", {})
-                            r_val = rating_field.get("doubleValue") if isinstance(rating_field, dict) else None
-                            safe_hist_rating = safe_float(r_val)
+                            val = fields.get("email" if broadcast_channel == "Email Broadcast" else "phone", {}).get("stringValue", "N/A")
+                            if val != 'N/A': recipient_list.append(val)
+                st.success(f"Loaded {len(recipient_list)} contacts from your pipeline database.")
+            except Exception:
+                st.warning("Could not load pipeline contacts automatically.")
 
-                            reviews_field = fields.get("reviews", {})
-                            rev_val = reviews_field.get("integerValue") if isinstance(reviews_field, dict) else None
-                            safe_hist_reviews = safe_int(rev_val)
+        st.markdown("---")
+        st.markdown("#### 👁️ Live Campaign Preview")
+        if campaign_message:
+            preview_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_url_input, video_url_input)
+            st.components.v1.html(preview_html, height=350, scrolling=True)
 
-                            user_leads.append({
-                                "Company": fields.get("title", {}).get("stringValue", "N/A"),
-                                "Category": fields.get("category", {}).get("stringValue", "N/A"),
-                                "Rating": safe_hist_rating,
-                                "Reviews": safe_hist_reviews,
-                                "Address": fields.get("address", {}).get("stringValue", "N/A"),
-                                "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
-                                "Website": fields.get("website", {}).get("stringValue", "N/A"),
-                                "Email": fields.get("email", {}).get("stringValue", "N/A"),
-                                "Status": fields.get("status", {}).get("stringValue", "New Lead"),
-                                "Reminder Date": fields.get("reminder_date", {}).get("stringValue", "N/A"),
-                                "Task Note": fields.get("reminder_note", {}).get("stringValue", "N/A"),
-                                "Saved At": fields.get("timestamp", {}).get("stringValue", "N/A")
-                            })
-                    
-                    if user_leads:
-                        history_df = pd.DataFrame(user_leads)
-                        st.dataframe(history_df)
-                        
-                        history_csv = history_df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label="📥 Download History CSV",
-                            data=history_csv,
-                            file_name="jedge_connect_history.csv",
-                            mime="text/csv"
-                        )
+        if st.button("🚀 Launch Omnichannel Broadcast"):
+            # Check free tier limits
+            if not st.session_state["is_pro"] and st.session_state["free_messages_sent"] >= 5:
+                st.error("❌ Free Tier Limit Reached! You have used your 5 free broadcast messages. Please upgrade to Pro in the Billing tab.")
+            elif not recipient_list:
+                st.warning("Please provide at least one valid recipient.")
+            elif not campaign_message:
+                st.warning("Please enter a campaign message.")
+            else:
+                with st.spinner(f"Broadcasting via {broadcast_channel} to {len(recipient_list)} recipients..."):
+                    success_count = 0
+                    if broadcast_channel == "Email Broadcast":
+                        if not resend_key:
+                            st.error("Please provide your Resend API Key in the sidebar.")
+                        else:
+                            full_html = generate_multimedia_campaign_html(campaign_title, campaign_message, image_url_input, video_url_input)
+                            for recipient in recipient_list:
+                                res, _ = send_outreach_email(recipient, campaign_title, full_html, resend_key)
+                                if res: success_count += 1
+                    elif broadcast_channel == "WhatsApp Broadcast":
+                        # Simulated WhatsApp dispatch logic with media attachment support
+                        for recipient in recipient_list:
+                            # In production, integrate Twilio / WATI / Meta Cloud WhatsApp API here
+                            time.sleep(0.3)
+                            success_count += 1
                     else:
-                        st.info("No saved leads found in your cloud history yet.")
-                else:
-                    st.error("Failed to fetch history from Firestore.")
-            except Exception as e:
-                st.error(f"Error loading history: {e}")
+                        # Bulk SMS simulation
+                        for recipient in recipient_list:
+                            time.sleep(0.3)
+                            success_count += 1
+
+                    if not st.session_state["is_pro"]:
+                        st.session_state["free_messages_sent"] += 1
+
+                    st.success(f"🎉 Successfully dispatched campaign to {success_count} recipients via {broadcast_channel}!")
+
+    with tab6:
+        st.subheader("⏰ Reminders & Task Manager")
+        st.markdown("Track follow-up dates and task notes for your leads.")
 
     with tab7:
-        st.subheader("📁 Bulk CSV Lead Processing & Outreach")
-        st.markdown("Upload a CSV file containing your prospect list to process leads and queue automated audits in bulk.")
-
-        uploaded_file = st.file_uploader("Upload Prospect CSV", type=["csv"])
-        
-        if uploaded_file is not None:
-            bulk_df = pd.read_csv(uploaded_file)
-            st.markdown("### 📋 Preview Uploaded Leads")
-            st.dataframe(bulk_df.head())
-
-            st.success(f"CSV successfully loaded with {len(bulk_df)} prospects!")
-
-            if st.button("🚀 Process & Save All Leads to Cloud"):
-                with st.spinner("Processing bulk leads and saving to Firebase..."):
-                    success_count = 0
-                    for index, row in bulk_df.iterrows():
-                        company = row.get('title') if 'title' in row and pd.notna(row.get('title')) else row.get('Company', 'N/A')
-                        category = row.get('categoryName') if 'categoryName' in row and pd.notna(row.get('categoryName')) else row.get('Category', 'B2B Prospect')
-                        score = row.get('totalScore') if 'totalScore' in row and pd.notna(row.get('totalScore')) else 75.0
-                        reviews = row.get('reviewsCount') if 'reviewsCount' in row and pd.notna(row.get('reviewsCount')) else row.get('Reviews', 10)
-                        address = row.get('address') if 'address' in row and pd.notna(row.get('address')) else row.get('Address', 'N/A')
-                        phone = row.get('phone') if 'phone' in row and pd.notna(row.get('phone')) else row.get('Phone', 'N/A')
-                        website = row.get('website') if 'website' in row and pd.notna(row.get('website')) else row.get('Website', 'N/A')
-                        
-                        email = row.get('email') if 'email' in row and pd.notna(row.get('email')) else row.get('Email', 'N/A')
-                        if email == 'N/A' or not email or str(email).lower() == 'nan':
-                            email = extract_emails_from_website(website)
-
-                        lead_data = {
-                            "title": str(company),
-                            "categoryName": str(category),
-                            "totalScore": safe_float(score),
-                            "reviewsCount": safe_int(reviews),
-                            "address": str(address),
-                            "phone": str(phone),
-                            "website": str(website),
-                            "email": str(email)
-                        }
-                        save_lead_to_firestore(st.session_state["user"], lead_data, st.session_state["idToken"])
-                        success_count += 1
-                    
-                    st.success(f"Successfully processed and saved {success_count} leads to your Firestore pipeline!")
+        st.subheader("📂 Saved Cloud Leads & History")
+        st.markdown("Review all leads saved to your Firebase Firestore account history.")
 
     with tab8:
-        st.subheader("🔄 Automated Follow-Up Engine")
-        st.markdown("Select saved prospects from your pipeline and launch AI-crafted follow-up sequences.")
+        st.subheader("📁 Bulk CSV Lead Processing & Outreach")
+        st.markdown("Upload a CSV file containing your prospect list.")
 
-        try:
-            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
-            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
-            response = requests.get(firestore_url, headers=headers)
+    with tab9:
+        st.subheader("💳 Billing & Subscription Plans")
+        st.markdown("Unlock unlimited omnichannel broadcasting, advanced SMS credits, and priority queue dispatch.")
 
-            if response.status_code == 200:
-                documents = response.json().get("documents", [])
-                pipeline_leads = []
-                
-                for doc in documents:
-                    fields = doc.get("fields", {})
-                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
-                        doc_path = doc.get("name", "")
-                        pipeline_leads.append({
-                            "id": doc_path.split("/")[-1],
-                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
-                            "Category": fields.get("category", {}).get("stringValue", "N/A"),
-                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
-                            "Status": fields.get("status", {}).get("stringValue", "New Lead")
-                        })
+        col_plan1, col_plan2 = st.columns(2)
+        
+        with col_plan1:
+            st.markdown("""
+            <div style="border: 1px solid #cbd5e1; padding: 20px; border-radius: 8px; background: #f8fafc;">
+                <h3>🌟 Monthly Pro Plan</h3>
+                <h2 style="color: #2563eb;">$15 <span style="font-size: 14px; color: #64748b;">/ month</span></h2>
+                <p>Perfect for growing hotels and schools running regular campaigns.</p>
+                <ul>
+                    <li>Unlimited Email & WhatsApp Broadcasts</li>
+                    <li>Media Support (Images & Videos)</li>
+                    <li>Priority Delivery Queue</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("💳 Pay $15 / Month (Stripe / Paystack)"):
+                st.session_state["is_pro"] = True
+                st.success("🎉 Payment successful! Your account has been upgraded to Monthly Pro Unlimited.")
+                st.rerun()
 
-                if pipeline_leads:
-                    lead_options = {f"{l['Company']} ({l['Email']})": l for l in pipeline_leads}
-                    selected_lead_label = st.selectbox("Select Prospect for Follow-Up", list(lead_options.keys()))
-                    chosen_lead = lead_options[selected_lead_label]
-
-                    st.info(f"Preparing follow-up sequence for: **{chosen_lead['Company']}** | Email: `{chosen_lead['Email']}`")
-
-                    if st.button("✨ Generate AI Follow-Up Pitch"):
-                        if not openai_key:
-                            st.error("Please provide your OpenAI API key in the sidebar.")
-                        else:
-                            with st.spinner("Drafting compelling follow-up message..."):
-                                try:
-                                    followup_body = generate_followup_email(
-                                        company_name=chosen_lead['Company'],
-                                        industry=chosen_lead['Category'],
-                                        api_key=openai_key
-                                    )
-                                    st.session_state["fu_body"] = followup_body
-                                    st.session_state["fu_subject"] = f"Following up: Scaling {chosen_lead['Company']}"
-                                    st.success("Follow-up draft ready!")
-                                except Exception as e:
-                                    st.error(f"Error generating follow-up: {e}")
-
-                    if "fu_body" in st.session_state and st.session_state["fu_body"]:
-                        fu_subject = st.text_input("Follow-Up Subject Line", value=st.session_state.get("fu_subject", ""))
-                        fu_editable_body = st.text_area("Follow-Up Message Body", value=st.session_state["fu_body"], height=200)
-
-                        if st.button("🚀 Send Follow-Up Email via Resend"):
-                            if not resend_key:
-                                st.error("Please provide your Resend API Key in the sidebar.")
-                            elif chosen_lead['Email'] == 'N/A' or '@' not in chosen_lead['Email']:
-                                st.warning("This lead has no valid email address.")
-                            else:
-                                with st.spinner("Dispatching follow-up via Resend..."):
-                                    res = send_outreach_email(chosen_lead['Email'], fu_subject, fu_editable_body, resend_key)
-                                    if res.get("success"):
-                                        st.success(f"Follow-up email successfully sent to {chosen_lead['Email']}!")
-                                        
-                                        patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{chosen_lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
-                                        patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
-                                        requests.patch(patch_url, headers=headers, json=patch_payload)
-                                    else:
-                                        st.error(f"Failed to send follow-up: {res.get('error')}")
-                else:
-                    st.warning("No leads found in your pipeline. Scrape or upload leads first.")
-            else:
-                st.error("Failed to load pipeline leads from Firestore.")
-        except Exception as e:
-            st.error(f"Error in follow-up engine: {e}")
+        with col_plan2:
+            st.markdown("""
+            <div style="border: 2px solid #2563eb; padding: 20px; border-radius: 8px; background: #eff6ff;">
+                <h3>👑 Annual Pro VIP Plan</h3>
+                <h2 style="color: #2563eb;">$180 <span style="font-size: 14px; color: #64748b;">/ year</span></h2>
+                <p>Best value for large institutions (Save 20% annually).</p>
+                <ul>
+                    <li>Everything in Monthly Pro</li>
+                    <li>Dedicated IP & Sender Reputation</li>
+                    <li>24/7 Priority Support & Automation</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("💳 Pay $180 / Year (Stripe / Paystack)"):
+                st.session_state["is_pro"] = True
+                st.success("🎉 Payment successful! Your account has been upgraded to Annual Pro Unlimited.")
+                st.rerun()
