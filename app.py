@@ -638,38 +638,36 @@ else:
 
         col_plan1, col_plan2 = st.columns(2)
         
-        with col_plan1:
-            st.markdown("""
-            <div style="border: 1px solid #cbd5e1; padding: 20px; border-radius: 8px; background: #f8fafc;">
-                <h3>🌟 Monthly Pro Plan</h3>
-                <h2 style="color: #2563eb;">$15 <span style="font-size: 14px; color: #64748b;">/ month</span></h2>
-                <p>Perfect for growing hotels and schools running regular campaigns.</p>
-                <ul>
-                    <li>Unlimited Email & WhatsApp Broadcasts</li>
-                    <li>Device Media Support (Images & Videos)</li>
-                    <li>Priority Delivery Queue</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("💳 Pay $15 / Month (Stripe / Paystack)", key="btn_monthly_pro"):
-                st.session_state["is_pro"] = True
-                st.success("🎉 Payment successful! Your account has been upgraded to Monthly Pro Unlimited.")
-                st.rerun()
+        col_plan1.markdown("""
+        <div style="border: 1px solid #cbd5e1; padding: 20px; border-radius: 8px; background: #f8fafc;">
+            <h3>🌟 Monthly Pro Plan</h3>
+            <h2 style="color: #2563eb;">$15 <span style="font-size: 14px; color: #64748b;">/ month</span></h2>
+            <p>Perfect for growing hotels and schools running regular campaigns.</p>
+            <ul>
+                <li>Unlimited Email & WhatsApp Broadcasts</li>
+                <li>Device Media Support (Images & Videos)</li>
+                <li>Priority Delivery Queue</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        if col_plan1.button("💳 Pay $15 / Month", key="btn_monthly_pro"):
+            st.session_state["is_pro"] = True
+            st.success("🎉 Upgraded to Monthly Pro Unlimited!")
+            st.rerun()
 
-        with col_plan2:
-            st.markdown("""
-            <div style="border: 2px solid #2563eb; padding: 20px; border-radius: 8px; background: #eff6ff;">
-                <h3>👑 Annual Pro VIP Plan</h3>
-                <h2 style="color: #2563eb;">$180 <span style="font-size: 14px; color: #64748b;">/ year</span></h2>
-                <p>Best value for large institutions (Save 20% annually).</p>
-                <ul>
-                    <li>Everything in Monthly Pro</li>
-                    <li>Dedicated IP & Sender Reputation</li>
-                    <li>24/7 Priority Support & Automation</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("💳 Pay $180 / Year (Stripe / Paystack)", key="btn_annual_pro"):
-                st.session_state["is_pro"] = True
-                st.success("🎉 Payment successful! Your account has been upgraded to Annual Pro Unlimited.")
-                st.rerun()
+        col_plan2.markdown("""
+        <div style="border: 2px solid #2563eb; padding: 20px; border-radius: 8px; background: #eff6ff;">
+            <h3>👑 Annual Pro VIP Plan</h3>
+            <h2 style="color: #2563eb;">$180 <span style="font-size: 14px; color: #64748b;">/ year</span></h2>
+            <p>Best value for large institutions (Save 20% annually).</p>
+            <ul>
+                <li>Everything in Monthly Pro</li>
+                <li>Dedicated IP & Sender Reputation</li>
+                <li>24/7 Priority Support & Automation</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        if col_plan2.button("💳 Pay $180 / Year", key="btn_annual_pro"):
+            st.session_state["is_pro"] = True
+            st.success("🎉 Upgraded to Annual Pro Unlimited!")
+            st.rerun()
