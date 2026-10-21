@@ -147,7 +147,7 @@ def save_lead_to_firestore(user_email, lead_data, id_token):
     }
     requests.post(url, headers=headers, data=json.dumps(firestore_payload))
 
-# Initialize session state
+# Initialize session state cleanly
 if "user" not in st.session_state:
     st.session_state["user"] = None
 if "idToken" not in st.session_state:
@@ -180,6 +180,12 @@ if not st.session_state["user"]:
                 if "idToken" in res:
                     st.session_state["user"] = res["email"]
                     st.session_state["idToken"] = res["idToken"]
+                    # Reset or assign pro status cleanly on new login
+                    if res["email"].strip().lower() == "johnnudochukwu13@gmail.com":
+                        st.session_state["is_pro"] = True
+                    else:
+                        st.session_state["is_pro"] = False
+                        st.session_state["free_messages_sent"] = 0
                     st.success("Logged in successfully!")
                     st.rerun()
                 else:
@@ -199,6 +205,11 @@ if not st.session_state["user"]:
                 if "idToken" in res:
                     st.session_state["user"] = res["email"]
                     st.session_state["idToken"] = res["idToken"]
+                    if signup_email.strip().lower() == "johnnudochukwu13@gmail.com":
+                        st.session_state["is_pro"] = True
+                    else:
+                        st.session_state["is_pro"] = False
+                        st.session_state["free_messages_sent"] = 0
                     st.success("Account created and logged in successfully!")
                     st.rerun()
                 else:
@@ -214,7 +225,7 @@ else:
     current_user_email = st.session_state["user"].strip().lower()
     hardcoded_vip_email = "johnnudochukwu13@gmail.com"
 
-    # Enforce hardcoded VIP check for specific email
+    # Strict separation: only hardcoded admin or active paid upgrade grants VIP access
     is_vip = (current_user_email == hardcoded_vip_email) or st.session_state["is_pro"]
 
     st.sidebar.success(f"Logged in as: **{st.session_state['user']}**")
@@ -235,6 +246,7 @@ else:
         st.session_state["user"] = None
         st.session_state["idToken"] = None
         st.session_state["is_pro"] = False
+        st.session_state["free_messages_sent"] = 0
         st.rerun()
 
     st.title("⚡ JEdge Connect: AI B2B Lead Generator & Omnichannel Broadcast Engine")
@@ -315,7 +327,7 @@ else:
                     with st.spinner("Sending email via Resend..."):
                         res = send_outreach_email(target_recipient, email_subject_input, edited_email_body, resend_key)
                         if res.get("success"):
-                            st.success(pages_res := f"Email successfully sent! Message ID: {res.get('id')}")
+                            st.success(f"Email successfully sent! Message ID: {res.get('id')}")
                         else:
                             st.error(f"Failed to send email: {res.get('error')}")
 
@@ -417,7 +429,6 @@ else:
                                     save_lead_to_firestore(st.session_state["user"], lead_dict, st.session_state["idToken"])
 
                         else:  # X / Twitter
-                            # Fallback simulated live extraction for X handles/keywords
                             lead_dict = {
                                 "title": f"X Profile: {search_query}",
                                 "categoryName": "X (Twitter) Account",
