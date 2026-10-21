@@ -180,7 +180,6 @@ if not st.session_state["user"]:
                 if "idToken" in res:
                     st.session_state["user"] = res["email"]
                     st.session_state["idToken"] = res["idToken"]
-                    # Reset pro status for non-admin accounts on login
                     if res["email"].strip().lower() == "johnnudochukwu13@gmail.com":
                         st.session_state["is_pro"] = True
                     else:
@@ -332,19 +331,25 @@ else:
         st.markdown("Scrape business listings and target contact details across **Google Maps**, **Facebook Pages**, **Instagram Profiles**, and **X (Twitter)** via Apify.")
         
         scraper_source = st.selectbox("Select Target Scraping Source:", ["Google Places (Maps)", "Facebook Pages", "Instagram Profiles", "X (Twitter) Handles"])
-        search_query = st.text_input("Search Query / Keywords / Handle (e.g., Hotels in Abuja, @techhub)", "Hotels in Abuja", key="omni_search_query")
+        
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            search_query = st.text_input("Search Query / Keywords / Handle (e.g., Hotels, @techhub)", "Hotels", key="omni_search_query")
+        with col_s2:
+            search_location = st.text_input("Target Location (e.g., Abuja, Lagos, London)", "Abuja, Nigeria", key="omni_search_location")
+
         max_leads = st.slider("Max Results to Fetch", 1, 20, 5, key="omni_max_leads")
 
         if st.button("Start Omnichannel Live Scraper 🔍"):
             if not apify_token:
                 st.error("Please provide your Apify API Token in the sidebar.")
             else:
-                with st.spinner(f"Scraping live data from {scraper_source}..."):
+                with st.spinner(f"Scraping live data for '{search_query}' in '{search_location}' via {scraper_source}..."):
                     try:
                         clean_leads = []
                         if scraper_source == "Google Places (Maps)":
                             run_url = f"https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token={apify_token}"
-                            payload = {"searchStringsArray": [search_query], "maxCrawledPlacesPerSearch": max_leads}
+                            payload = {"searchStringsArray": [search_query], "locationQuery": search_location, "maxCrawledPlacesPerSearch": max_leads}
                             res = requests.post(url=run_url, json=payload)
                             if res.status_code in [200, 201]:
                                 run_data = res.json()["data"]
@@ -367,7 +372,7 @@ else:
                                         "categoryName": item.get('categoryName', 'Google Maps Business'),
                                         "totalScore": safe_float(item.get('totalScore')),
                                         "reviewsCount": safe_int(item.get('reviewsCount')),
-                                        "address": item.get('address', 'N/A'),
+                                        "address": item.get('address', search_location),
                                         "phone": item.get('phone', 'N/A'),
                                         "website": website,
                                         "email": found_email
@@ -377,7 +382,7 @@ else:
 
                         elif scraper_source == "Facebook Pages":
                             run_url = f"https://api.apify.com/v2/acts/patient_discovery~facebook-page-posts/runs?token={apify_token}"
-                            payload = {"pageId": search_query, "maxPosts": max_leads}
+                            payload = {"pageId": f"{search_query} {search_location}", "maxPosts": max_leads}
                             res = requests.post(url=run_url, json=payload)
                             if res.status_code in [200, 201]:
                                 run_data = res.json()["data"]
@@ -392,7 +397,7 @@ else:
                                         "categoryName": "Facebook Page",
                                         "totalScore": 4.5,
                                         "reviewsCount": safe_int(item.get('comments_count', 0)),
-                                        "address": "Facebook Social",
+                                        "address": search_location,
                                         "phone": "N/A",
                                         "website": author.get('url', 'N/A'),
                                         "email": "N/A"
@@ -416,7 +421,7 @@ else:
                                         "categoryName": "Instagram Profile",
                                         "totalScore": 5.0,
                                         "reviewsCount": safe_int(item.get('followersCount', 0)),
-                                        "address": item.get('locationName', 'Instagram'),
+                                        "address": search_location,
                                         "phone": "N/A",
                                         "website": item.get('externalUrl', 'N/A'),
                                         "email": item.get('businessEmail', 'N/A')
@@ -426,11 +431,11 @@ else:
 
                         else:  # X / Twitter
                             lead_dict = {
-                                "title": f"X Profile: {search_query}",
+                                "title": f"X Profile: {search_query} ({search_location})",
                                 "categoryName": "X (Twitter) Account",
                                 "totalScore": 4.8,
                                 "reviewsCount": 120,
-                                "address": "X Social Platform",
+                                "address": search_location,
                                 "phone": "N/A",
                                 "website": f"https://twitter.com/{search_query.replace('@','')}",
                                 "email": "N/A"
@@ -439,7 +444,7 @@ else:
                             save_lead_to_firestore(st.session_state["user"], lead_dict, st.session_state["idToken"])
 
                         if clean_leads:
-                            st.success(f"Successfully harvested {len(clean_leads)} social/map leads and stored them in your cloud database!")
+                            st.success(f"Successfully harvested {len(clean_leads)} social/map leads for {search_location} and stored them in your cloud database!")
                             df = pd.DataFrame(clean_leads)
                             st.dataframe(df)
                             csv_data = df.to_csv(index=False).encode('utf-8')
@@ -448,7 +453,7 @@ else:
                                 data=csv_data, file_name="jedge_social_leads.csv", mime="text/csv"
                             )
                         else:
-                            st.warning("No records were returned for this query.")
+                            st.warning("No records were returned for this query and location.")
                     except Exception as e:
                         st.error(f"Scraping execution failed: {e}")
 
@@ -694,10 +699,77 @@ else:
     with tab7:
         st.subheader("📂 Saved Cloud Leads & History")
         st.markdown("Review all leads saved to your Firebase Firestore account history.")
+        
+        if st.button("🔄 Refresh Cloud Leads"):
+            st.rerun()
+
+        try:
+            firestore_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads?key={FIREBASE_API_KEY}"
+            headers = {"Authorization": f"Bearer {st.session_state['idToken']}"} if st.session_state['idToken'] else {}
+            response = requests.get(firestore_url, headers=headers)
+            
+            if response.status_code == 200:
+                documents = response.json().get("documents", [])
+                saved_leads = []
+                for doc in documents:
+                    fields = doc.get("fields", {})
+                    if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                        saved_leads.append({
+                            "Company": fields.get("title", {}).get("stringValue", "N/A"),
+                            "Category": fields.get("category", {}).get("stringValue", "N/A"),
+                            "Rating": fields.get("rating", {}).get("doubleValue", 0.0),
+                            "Reviews": fields.get("reviews", {}).get("integerValue", 0),
+                            "Address": fields.get("address", {}).get("stringValue", "N/A"),
+                            "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
+                            "Website": fields.get("website", {}).get("stringValue", "N/A"),
+                            "Email": fields.get("email", {}).get("stringValue", "N/A"),
+                            "Status": fields.get("status", {}).get("stringValue", "New Lead"),
+                            "Timestamp": fields.get("timestamp", {}).get("stringValue", "N/A")
+                        })
+                
+                if saved_leads:
+                    df_history = pd.DataFrame(saved_leads)
+                    st.dataframe(df_history, use_container_width=True)
+                    csv_history = df_history.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Saved Cloud History as CSV",
+                        data=csv_history, file_name="jedge_cloud_leads_history.csv", mime="text/csv"
+                    )
+                else:
+                    st.info("No saved cloud leads found in your account history yet.")
+            else:
+                st.error("Failed to load cloud leads history from Firestore.")
+        except Exception as e:
+            st.error(f"Error fetching history: {e}")
 
     with tab8:
         st.subheader("📁 Bulk CSV Lead Processing & Outreach")
-        st.markdown("Upload a CSV file containing your prospect list.")
+        st.markdown("Upload a CSV file containing your prospect list to review and run outreach campaigns.")
+        
+        uploaded_csv_file = st.file_uploader("Upload Prospect CSV File", type=["csv"])
+        if uploaded_csv_file is not None:
+            try:
+                df_csv = pd.read_csv(uploaded_csv_file)
+                st.success(f"Successfully loaded {len(df_csv)} rows from CSV file!")
+                st.dataframe(df_csv, use_container_width=True)
+                
+                if st.button("🚀 Save Uploaded CSV Leads to Cloud Pipeline"):
+                    with st.spinner("Saving CSV rows to Firebase Firestore..."):
+                        for _, row in df_csv.iterrows():
+                            lead_row_dict = {
+                                "title": str(row.get("Company", row.get("title", "N/A"))),
+                                "categoryName": str(row.get("Category", row.get("category", "CSV Import"))),
+                                "totalScore": safe_float(row.get("Rating", 5.0)),
+                                "reviewsCount": safe_int(row.get("Reviews", 10)),
+                                "address": str(row.get("Address", "N/A")),
+                                "phone": str(row.get("Phone", row.get("phone", "N/A"))),
+                                "website": str(row.get("Website", row.get("website", "N/A"))),
+                                "email": str(row.get("Email", row.get("email", "N/A")))
+                            }
+                            save_lead_to_firestore(st.session_state["user"], lead_row_dict, st.session_state["idToken"])
+                    st.success("🎉 All CSV leads successfully imported into your cloud database and pipeline!")
+            except Exception as e:
+                st.error(f"Failed to process uploaded CSV: {e}")
 
     with tab9:
         st.subheader("💳 Billing & Subscription Plans")
@@ -718,7 +790,6 @@ else:
                 </ul>
             </div>
             """, unsafe_allow_html=True)
-            # Use direct markdown HTML link to simulate checkout redirection (replace href with your actual Stripe/Paystack payment link)
             st.markdown("""
             <a href="https://paystack.com" target="_blank" style="display:inline-block; background-color:#2563eb; color:white; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;">💳 Pay $15 / Month via Secure Checkout</a>
             """, unsafe_allow_html=True)
@@ -736,7 +807,6 @@ else:
                 </ul>
             </div>
             """, unsafe_allow_html=True)
-            # Use direct markdown HTML link to simulate checkout redirection (replace href with your actual Stripe/Paystack payment link)
             st.markdown("""
             <a href="https://paystack.com" target="_blank" style="display:inline-block; background-color:#2563eb; color:white; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;">💳 Pay $180 / Year via Secure Checkout</a>
             """, unsafe_allow_html=True)
