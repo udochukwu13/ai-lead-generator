@@ -77,7 +77,7 @@ def send_custom_email(client_email: str, client_name: str, services_list: list, 
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="JEdge Connect | AI B2B & Bulk Messaging Hub",
+    page_title="JEdge Connect | Enterprise B2B Sales Operating System",
     page_icon="⚡",
     layout="wide"
 )
@@ -158,75 +158,91 @@ if "is_pro" not in st.session_state:
     st.session_state["is_pro"] = False
 
 # ==========================================
-# 3. AUTHENTICATION GATE
+# 3. ENTERPRISE AUTHENTICATION & LANDING GATE
 # ==========================================
 if not st.session_state["user"]:
-    st.title("⚡ JEdge Connect: Secure Login")
-    st.markdown("Please log in or create an account to access the Omnichannel Bulk Messaging Dashboard.")
+    # Professional SaaS Landing Page Hero Header
+    st.markdown("""
+    <div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 12px; color: white; margin-bottom: 30px;">
+        <h1 style="font-size: 42px; margin-bottom: 10px;">⚡ JEdge Connect Enterprise</h1>
+        <p style="font-size: 18px; color: #94a3b8; max-width: 600px; margin: 0 auto;">The AI-powered B2B Lead Generation and Omnichannel Sales Operating System built for high-growth institutions.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     if not FIREBASE_API_KEY:
-        st.error("⚠️ Firebase API Key is missing! Please configure it in Streamlit Secrets.")
+        st.error("⚠️ Firebase API Key is missing! Please configure it in your Streamlit Secrets.")
 
-    auth_tab1, auth_tab2 = st.tabs(["🔑 Log In", "📝 Sign Up"])
+    col_land1, col_land2 = st.columns([1.2, 1])
+    with col_land1:
+        st.markdown("### 🚀 Why Elite Sales Teams Choose JEdge Connect:")
+        st.markdown("""
+        * **🌍 Multi-Source Discovery:** Harvest qualified leads instantly from Google Maps, Facebook, Instagram, and X.
+        * **✉️ Omnichannel Dispatch:** Execute high-conversion campaigns across Email, WhatsApp, and SMS with native media support.
+        * **📊 Intelligent CRM Pipeline:** Automate proposal generation, website SEO audits, and follow-up task tracking.
+        * **🔒 Enterprise Security:** Strict user data encryption and dedicated role-based access.
+        """)
+    
+    with col_land2:
+        auth_tab1, auth_tab2 = st.tabs(["🔑 Sign In", "📝 Register Account"])
 
-    with auth_tab1:
-        st.subheader("Welcome Back")
-        login_email = st.text_input("Email", key="login_email")
-        login_password = st.text_input("Password", type="password", key="login_password")
-        
-        if st.button("Log In"):
-            if login_email and login_password:
-                res = sign_in(login_email, login_password)
-                if "idToken" in res:
-                    st.session_state["user"] = res["email"]
-                    st.session_state["idToken"] = res["idToken"]
-                    if res["email"].strip().lower() == "johnnudochukwu13@gmail.com":
-                        st.session_state["is_pro"] = True
+        with auth_tab1:
+            st.subheader("Secure Access")
+            login_email = st.text_input("Email Address", key="login_email")
+            login_password = st.text_input("Password", type="password", key="login_password")
+            
+            if st.button("Access Dashboard 🚀", use_container_width=True):
+                if login_email and login_password:
+                    res = sign_in(login_email, login_password)
+                    if "idToken" in res:
+                        st.session_state["user"] = res["email"]
+                        st.session_state["idToken"] = res["idToken"]
+                        if res["email"].strip().lower() == "johnnudochukwu13@gmail.com":
+                            st.session_state["is_pro"] = True
+                        else:
+                            st.session_state["is_pro"] = False
+                            st.session_state["free_messages_sent"] = 0
+                        st.success("Authenticated successfully!")
+                        st.rerun()
                     else:
-                        st.session_state["is_pro"] = False
-                        st.session_state["free_messages_sent"] = 0
-                    st.success("Logged in successfully!")
-                    st.rerun()
+                        error_message = res.get("error", {}).get("message", "Unknown error")
+                        st.error(f"Login failed: {error_message}")
                 else:
-                    error_message = res.get("error", {}).get("message", "Unknown error")
-                    st.error(f"Login failed: {error_message}")
-            else:
-                st.warning("Please fill in both email and password.")
+                    st.warning("Please fill in both email and password.")
 
-    with auth_tab2:
-        st.subheader("Create a New Account")
-        signup_email = st.text_input("Email", key="signup_email")
-        signup_password = st.text_input("Password (min 6 chars)", type="password", key="signup_password")
-        
-        if st.button("Sign Up"):
-            if signup_email and signup_password:
-                res = sign_up(signup_email, signup_password)
-                if "idToken" in res:
-                    st.session_state["user"] = res["email"]
-                    st.session_state["idToken"] = res["idToken"]
-                    if signup_email.strip().lower() == "johnnudochukwu13@gmail.com":
-                        st.session_state["is_pro"] = True
+        with auth_tab2:
+            st.subheader("Create New Workspace")
+            signup_email = st.text_input("Work Email", key="signup_email")
+            signup_password = st.text_input("Password (min 6 chars)", type="password", key="signup_password")
+            
+            if st.button("Initialize Workspace ✨", use_container_width=True):
+                if signup_email and signup_password:
+                    res = sign_up(signup_email, signup_password)
+                    if "idToken" in res:
+                        st.session_state["user"] = res["email"]
+                        st.session_state["idToken"] = res["idToken"]
+                        if signup_email.strip().lower() == "johnnudochukwu13@gmail.com":
+                            st.session_state["is_pro"] = True
+                        else:
+                            st.session_state["is_pro"] = False
+                            st.session_state["free_messages_sent"] = 0
+                        st.success("Workspace initialized successfully!")
+                        st.rerun()
                     else:
-                        st.session_state["is_pro"] = False
-                        st.session_state["free_messages_sent"] = 0
-                    st.success("Account created and logged in successfully!")
-                    st.rerun()
+                        error_message = res.get("error", {}).get("message", "Unknown error")
+                        st.error(f"Registration failed: {error_message}")
                 else:
-                    error_message = res.get("error", {}).get("message", "Unknown error")
-                    st.error(f"Sign up failed: {error_message}")
-            else:
-                st.warning("Please fill in all fields.")
+                    st.warning("Please fill in all fields.")
 
 else:
     # ==========================================
-    # 4. PROTECTED SAAS DASHBOARD (Logged In)
+    # 4. PROTECTED ENTERPRISE SAAS DASHBOARD
     # ==========================================
     current_user_email = st.session_state["user"].strip().lower()
     hardcoded_vip_email = "johnnudochukwu13@gmail.com"
 
     is_vip = (current_user_email == hardcoded_vip_email) or st.session_state["is_pro"]
 
-    st.sidebar.success(f"Logged in as: **{st.session_state['user']}**")
+    st.sidebar.success(f"Workspace User: **{st.session_state['user']}**")
     
     if is_vip:
         if current_user_email == hardcoded_vip_email:
@@ -237,17 +253,17 @@ else:
         st.sidebar.warning(f"💡 Free Tier: **{max(0, 5 - st.session_state['free_messages_sent'])} / 5 Free Broadcasts Left**")
         st.sidebar.info("📌 Go to **Billing & Upgrade** tab to unlock Pro unlimited.")
 
-    if st.sidebar.button("Log Out"):
+    if st.sidebar.button("Log Out Workspace"):
         st.session_state["user"] = None
         st.session_state["idToken"] = None
         st.session_state["is_pro"] = False
         st.session_state["free_messages_sent"] = 0
         st.rerun()
 
-    st.title("⚡ JEdge Connect: AI B2B Lead Generator & Omnichannel Broadcast Engine")
-    st.markdown("Run high-impact email, WhatsApp, and SMS campaigns for hotels, schools, and enterprise promotions.")
+    st.title("⚡ JEdge Connect: Enterprise Sales Operating System")
+    st.markdown("Execute high-conversion sales pipelines, AI email generation, and multi-channel marketing campaigns.")
 
-    st.sidebar.header("Configuration")
+    st.sidebar.header("API Configuration")
     openai_key = st.sidebar.text_input("OpenAI API Key", type="password", value=os.environ.get("OPENAI_API_KEY", ""))
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
     resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
@@ -328,7 +344,7 @@ else:
 
     with tab2:
         st.subheader("🌍 Omnichannel Social & Maps Scraper")
-        st.markdown("Scrape business listings and target contact details across **Google Maps**, **Facebook Pages**, **Instagram Profiles**, and **X (Twitter)** via Apify.")
+        st.markdown("Harvest high-intent B2B leads across **Google Maps**, **Facebook Pages**, **Instagram Profiles**, and **X (Twitter)** with custom location targeting.")
         
         scraper_source = st.selectbox("Select Target Scraping Source:", ["Google Places (Maps)", "Facebook Pages", "Instagram Profiles", "X (Twitter) Handles"])
         
