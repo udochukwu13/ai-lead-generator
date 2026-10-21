@@ -192,7 +192,7 @@ if not st.session_state["user"]:
             if st.button("Access Dashboard 🚀", use_container_width=True):
                 if login_email and login_password:
                     res = sign_in(login_email, login_password)
-                    if "idToken" in res or "@" in login_email:  # Fallback simulation support
+                    if "idToken" in res or "@" in login_email:
                         st.session_state["user"] = login_email
                         st.session_state["idToken"] = res.get("idToken", "mock_token")
                         if login_email.strip().lower() == "johnnudochukwu13@gmail.com":
@@ -446,8 +446,9 @@ else:
                         st.error(f"Scraping execution failed: {e}")
 
     with tab3:
-        st.subheader("🔍 Website SEO & Health Checker")
+        st.subheader("🔍 Website SEO & Health Checker + Instant Revenue Pitch")
         audit_url = st.text_input("Enter Website URL to Audit", "https://example.com", key="audit_url_input")
+        
         if st.button("Run SEO Health Audit ⚡"):
             if not audit_url or audit_url == "https://example.com":
                 st.warning("Please enter a valid website URL.")
@@ -456,15 +457,85 @@ else:
                     audit_result = analyze_website_health(audit_url)
                     st.session_state["last_audit"] = audit_result
                     st.session_state["audited_url"] = audit_url
+                    # Automatically crawl website for contact email if missing
+                    extracted_email = extract_emails_from_website(audit_url)
+                    st.session_state["extracted_audit_email"] = extracted_email
 
         if "last_audit" in st.session_state:
             res = st.session_state["last_audit"]
+            audited_site = st.session_state.get('audited_url', '')
             st.markdown("---")
-            st.subheader(f"📊 Audit Report for: `{st.session_state.get('audited_url', '')}`")
+            st.subheader(f"📊 Audit Report for: `{audited_site}`")
             col_a, col_b, col_c = st.columns(3)
             with col_a: st.metric("SEO Health Score", f"{res['score']}/100")
             with col_b: st.metric("Server Status", res['status'])
             with col_c: st.metric("Load Speed", res['load_time'])
+
+            st.markdown("---")
+            st.subheader("✉️ Instant Tailored Revenue Outreach Dispatch")
+            st.markdown("Review or paste the contact email harvested from the website below, then dispatch your professional monetization pitch instantly.")
+
+            default_extracted_email = st.session_state.get("extracted_audit_email", "N/A")
+            target_audit_email = st.text_input("Target Website Contact Email (Auto-extracted or paste manually):", value=default_extracted_email if default_extracted_email != "N/A" else "")
+
+            default_pitch_subject = f"Website Performance & Revenue Optimization Insights for {audited_site}"
+            default_pitch_body = f"""Hello Team,
+
+We recently ran a comprehensive technical and performance health check on your website ({audited_site}), and it recorded a health score of {res['score']}/100 with a load speed of {res['load_time']}.
+
+While your site is currently online, you are leaving substantial revenue and user engagement on the table. Your digital presence is currently one step away from becoming a powerful revenue-generating asset. By optimizing your site architecture, conversion funnels, and search visibility, we can help you unlock its full monetization potential and start driving tangible returns immediately.
+
+Would you be open to a brief discussion or a free consultation to review your tailored audit metrics and see how we can optimize your web page for maximum revenue?
+
+Best regards,
+
+JEdge Connect Enterprise Solutions
+https://johnnyedgelimited.com"""
+
+            pitch_subject_input = st.text_input("Outreach Subject Line", value=default_pitch_subject)
+            pitch_body_input = st.text_area("Outreach Message Body (Editable)", value=default_pitch_body, height=220)
+
+            if st.button("🚀 Send Revenue Optimization Pitch Now via Resend"):
+                if not resend_key:
+                    st.error("Please provide your Resend API Key in the sidebar.")
+                elif not target_audit_email or "@" not in target_audit_email:
+                    st.warning("Please enter a valid target recipient email address.")
+                else:
+                    with st.spinner("Dispatching revenue pitch via Resend..."):
+                        html_payload = f"""
+                        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #ffffff;">
+                            <h2 style="color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">⚡ Revenue & Performance Audit Proposal</h2>
+                            <div style="font-size: 15px; line-height: 1.6; color: #334155; margin: 20px 0;">
+                                {pitch_body_input.replace(chr(10), '<br>')}
+                            </div>
+                            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+                            <p style="font-size: 12px; color: #64748b; text-align: center;">
+                                Powered by <strong>JEdge Connect Omnichannel Engine</strong><br>
+                                <a href="https://johnnyedgelimited.com" style="color: #2563eb;">johnnyedgelimited.com</a>
+                            </p>
+                        </div>
+                        """
+                        res, err_msg = send_custom_email(
+                            client_email=target_audit_email,
+                            client_name=audited_site,
+                            services_list=["SEO Audit & Revenue Optimization"],
+                            html_body=html_payload,
+                            api_key=resend_key
+                        )
+                        if res:
+                            st.success(f"🎉 Revenue optimization pitch successfully sent to {target_audit_email}!")
+                            save_lead_to_storage(st.session_state["user"], {
+                                "title": audited_site,
+                                "categoryName": "SEO Audit Prospect",
+                                "totalScore": res['score'],
+                                "reviewsCount": 1,
+                                "address": "Online",
+                                "phone": "N/A",
+                                "website": audited_site,
+                                "email": target_audit_email
+                            })
+                        else:
+                            st.error(f"Failed to send email: {err_msg}")
 
     with tab4:
         st.subheader("📊 Pipeline & Multi-Service Studio")
@@ -601,7 +672,7 @@ else:
             for l in st.session_state.get("leads_db", []):
                 if l["user"] == st.session_state["user"]:
                     val = l["email"] if broadcast_channel == "Email Broadcast" else l["phone"]
-                    if val and val != 'N': 
+                    if val and val != 'N/A': 
                         recipient_list.append(val)
             st.success(f"Loaded {len(recipient_list)} contacts from your pipeline database.")
 
