@@ -9,6 +9,25 @@ from datetime import date
 from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health
 
 # ==========================================
+# 0. SAFE CONVERSION HELPERS
+# ==========================================
+def safe_float(val, default=0.0):
+    try:
+        if val is None or str(val).strip() == "":
+            return default
+        return float(val)
+    except Exception:
+        return default
+
+def safe_int(val, default=0):
+    try:
+        if val is None or str(val).strip() == "":
+            return default
+        return int(val)
+    except Exception:
+        return default
+
+# ==========================================
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
@@ -63,13 +82,17 @@ def save_lead_to_firestore(user_email, lead_data, id_token):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {id_token}"
     }
+    
+    safe_score = safe_float(lead_data.get("totalScore"))
+    safe_reviews = safe_int(lead_data.get("reviewsCount"))
+
     firestore_payload = {
         "fields": {
             "user": {"stringValue": user_email},
             "title": {"stringValue": str(lead_data.get("title", "N/A"))},
             "category": {"stringValue": str(lead_data.get("categoryName", "N/A"))},
-            "rating": {"doubleValue": float(lead_data.get("totalScore", 0.0))},
-            "reviews": {"integerValue": int(lead_data.get("reviewsCount", 0))},
+            "rating": {"doubleValue": safe_score},
+            "reviews": {"integerValue": safe_reviews},
             "address": {"stringValue": str(lead_data.get("address", "N/A"))},
             "phone": {"stringValue": str(lead_data.get("phone", "N/A"))},
             "website": {"stringValue": str(lead_data.get("website", "N/A"))},
@@ -289,11 +312,14 @@ else:
                                         website = item.get('website', 'N/A')
                                         found_email = extract_emails_from_website(website)
                                         
+                                        safe_score = safe_float(item.get('totalScore'))
+                                        safe_reviews = safe_int(item.get('reviewsCount'))
+
                                         lead_dict = {
                                             "title": item.get('title', 'N/A'),
                                             "categoryName": item.get('categoryName', 'N/A'),
-                                            "totalScore": item.get('totalScore', 0.0),
-                                            "reviewsCount": item.get('reviewsCount', 0),
+                                            "totalScore": safe_score,
+                                            "reviewsCount": safe_reviews,
                                             "address": item.get('address', 'N/A'),
                                             "phone": item.get('phone', 'N/A'),
                                             "website": website,
@@ -447,10 +473,10 @@ else:
                                     st.text(f"✉️ {lead['Email']}")
                                     
                                     new_status = st.selectbox(
-                                                "Move to:", 
-                                                stages, 
-                                                index=stages.index(stage), 
-                                                key=f"status_{lead['id']}"
+                                        "Move to:", 
+                                        stages, 
+                                        index=stages.index(stage), 
+                                        key=f"status_{lead['id']}"
                                     )
                                     
                                     if new_status != stage:
@@ -554,11 +580,19 @@ else:
                     for doc in documents:
                         fields = doc.get("fields", {})
                         if fields.get("user", {}).get("stringValue") == st.session_state["user"]:
+                            rating_field = fields.get("rating", {})
+                            r_val = rating_field.get("doubleValue") if isinstance(rating_field, dict) else None
+                            safe_hist_rating = safe_float(r_val)
+
+                            reviews_field = fields.get("reviews", {})
+                            rev_val = reviews_field.get("integerValue") if isinstance(reviews_field, dict) else None
+                            safe_hist_reviews = safe_int(rev_val)
+
                             user_leads.append({
                                 "Company": fields.get("title", {}).get("stringValue", "N/A"),
                                 "Category": fields.get("category", {}).get("stringValue", "N/A"),
-                                "Rating": fields.get("rating", {}).get("doubleValue", 0.0),
-                                "Reviews": fields.get("reviews", {}).get("integerValue", 0),
+                                "Rating": safe_hist_rating,
+                                "Reviews": safe_hist_reviews,
                                 "Address": fields.get("address", {}).get("stringValue", "N/A"),
                                 "Phone": fields.get("phone", {}).get("stringValue", "N/A"),
                                 "Website": fields.get("website", {}).get("stringValue", "N/A"),
