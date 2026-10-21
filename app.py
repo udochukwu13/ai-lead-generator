@@ -6,7 +6,7 @@ import time
 import re
 import pandas as pd
 from datetime import date
-from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health
+from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health, generate_audit_html, send_audit_email
 
 # ==========================================
 # 0. SAFE CONVERSION HELPERS
@@ -364,7 +364,25 @@ else:
                                             st.markdown(f"**Website:** [{website}]({website})")
                                         else:
                                             st.write("**Website:** N/A")
-                                            
+
+                                        # Direct Initial Audit Email Trigger Button
+                                        if email != 'N/A' and website != 'N/A':
+                                            if st.button(f"📧 Send Initial Audit Report to {item['title']}", key=f"send_audit_{idx}"):
+                                                with st.spinner(f"Running quick health check and dispatching audit report to {email}..."):
+                                                    # Run light audit stats for the email
+                                                    audit_res = analyze_website_health(website)
+                                                    html_report = generate_audit_html(
+                                                        target_url=website,
+                                                        seo_score=audit_res['score'],
+                                                        load_speed=audit_res['load_time'],
+                                                        has_https=audit_res['https']
+                                                    )
+                                                    success, res_obj = send_audit_email(client_email=email, client_name=item['title'], audit_report_html=html_report)
+                                                    if success:
+                                                        st.success(f"Audit report successfully dispatched to {email}!")
+                                                    else:
+                                                        st.error(f"Failed to dispatch audit report: {res_obj}")
+                                        
                                         st.markdown("---")
                                 else:
                                     st.warning("No leads found for this query/location.")
@@ -731,7 +749,6 @@ else:
                                     if res.get("success"):
                                         st.success(f"Follow-up email successfully sent to {chosen_lead['Email']}!")
                                         
-                                        # Automatically update lead status to 'Contacted' in Firestore
                                         patch_url = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/leads/{chosen_lead['id']}?updateMask.fieldPaths=status&key={FIREBASE_API_KEY}"
                                         patch_payload = {"fields": {"status": {"stringValue": "Contacted"}}}
                                         requests.patch(patch_url, headers=headers, json=patch_payload)
