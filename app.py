@@ -51,7 +51,7 @@ def generate_custom_service_html(target_url: str, company_name: str, selected_se
             <p style="margin: 5px 0; font-size: 13px; color: #64748b;">Current SEO Health Score: {seo_score}/100 | Load Speed: {load_speed} | Security: {https_status}</p>
         </div>
 
-        <p>By transitioning from manual record-keeping and disjointed workflows to our unified ecosystem, your organization can eliminate administrative bottlenecks, secure customer/student data, and drive automated growth.</p>
+        <p>By transitioning from manual record-keeping, disjointed workflows, or standard operations to our unified digital ecosystem, your organization can eliminate administrative bottlenecks, secure data, and drive automated growth.</p>
         <p>Let's schedule a quick introductory demo to show how our systems can be deployed for your organization. Reply directly to this email to get started.</p>
         <p>Best regards,<br>
         <strong>JEdge Connect Team</strong><br>
@@ -518,6 +518,7 @@ else:
                         service_erp = st.checkbox("🏢 Full ERP Software Solutions", value=True)
                         service_crm = st.checkbox("🤝 CRM Management & Lead Tracking", value=True)
                         service_auto = st.checkbox("⚙️ Full Operations Automation", value=True)
+                        service_games = st.checkbox("🎮 Academic & Educational Games Suite (All Subjects/Levels)", value=True)
                     with col_chk2:
                         service_book = st.checkbox("📊 Digital Bookkeeping & Record Keeping", value=False)
                         service_web = st.checkbox("🌐 Custom Web & Mobile App Development", value=False)
@@ -528,6 +529,7 @@ else:
                     if service_erp: chosen_services.append("Full ERP Software Solutions")
                     if service_crm: chosen_services.append("CRM Management & Lead Tracking")
                     if service_auto: chosen_services.append("Full Operations Automation")
+                    if service_games: chosen_services.append("Academic & Educational Games Suite (Covering All Subjects & Levels)")
                     if service_book: chosen_services.append("Digital Bookkeeping & Record Keeping")
                     if service_web: chosen_services.append("Custom Web & Mobile App Development")
                     if service_audit: chosen_services.append("SEO & Website Health Optimization")
@@ -561,7 +563,7 @@ else:
                             )
                         
                         # Render full width preview
-                        st.components.v1.html(full_html_report, height=400, scrolling=True)
+                        st.components.v1.html(full_html_report, height=420, scrolling=True)
 
                         if st.button("🚀 Confirm & Dispatch Multi-Service Proposal"):
                             if not resend_key:
