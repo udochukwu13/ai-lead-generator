@@ -180,7 +180,7 @@ if not st.session_state["user"]:
                 if "idToken" in res:
                     st.session_state["user"] = res["email"]
                     st.session_state["idToken"] = res["idToken"]
-                    # Reset or assign pro status cleanly on new login
+                    # Reset pro status for non-admin accounts on login
                     if res["email"].strip().lower() == "johnnudochukwu13@gmail.com":
                         st.session_state["is_pro"] = True
                     else:
@@ -225,7 +225,6 @@ else:
     current_user_email = st.session_state["user"].strip().lower()
     hardcoded_vip_email = "johnnudochukwu13@gmail.com"
 
-    # Strict separation: only hardcoded admin or active paid upgrade grants VIP access
     is_vip = (current_user_email == hardcoded_vip_email) or st.session_state["is_pro"]
 
     st.sidebar.success(f"Logged in as: **{st.session_state['user']}**")
@@ -237,10 +236,7 @@ else:
             st.sidebar.success("🌟 Account Status: **PRO UNLIMITED**")
     else:
         st.sidebar.warning(f"💡 Free Tier: **{max(0, 5 - st.session_state['free_messages_sent'])} / 5 Free Broadcasts Left**")
-        if st.sidebar.button("🚀 Upgrade to Pro ($15/mo)"):
-            st.session_state["is_pro"] = True
-            st.success("🎉 Account successfully upgraded to Pro Unlimited!")
-            st.rerun()
+        st.sidebar.info("📌 Go to **Billing & Upgrade** tab to unlock Pro unlimited.")
 
     if st.sidebar.button("Log Out"):
         st.session_state["user"] = None
@@ -722,10 +718,10 @@ else:
                 </ul>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("💳 Pay $15 / Month (Stripe / Paystack)", key="btn_monthly_pro"):
-                st.session_state["is_pro"] = True
-                st.success("🎉 Payment successful! Your account has been upgraded to Monthly Pro Unlimited.")
-                st.rerun()
+            # Use direct markdown HTML link to simulate checkout redirection (replace href with your actual Stripe/Paystack payment link)
+            st.markdown("""
+            <a href="https://paystack.com" target="_blank" style="display:inline-block; background-color:#2563eb; color:white; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;">💳 Pay $15 / Month via Secure Checkout</a>
+            """, unsafe_allow_html=True)
 
         with col_plan2:
             st.markdown("""
@@ -740,7 +736,7 @@ else:
                 </ul>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("💳 Pay $180 / Year (Stripe / Paystack)", key="btn_annual_pro"):
-                st.session_state["is_pro"] = True
-                st.success("🎉 Payment successful! Your account has been upgraded to Annual Pro VIP Unlimited.")
-                st.rerun()
+            # Use direct markdown HTML link to simulate checkout redirection (replace href with your actual Stripe/Paystack payment link)
+            st.markdown("""
+            <a href="https://paystack.com" target="_blank" style="display:inline-block; background-color:#2563eb; color:white; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;">💳 Pay $180 / Year via Secure Checkout</a>
+            """, unsafe_allow_html=True)
