@@ -6,10 +6,13 @@ import time
 import re
 import pandas as pd
 from datetime import date
-from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health, generate_audit_html, send_audit_email
+import resend
+
+# Securely load Resend API key from Streamlit secrets or environment variables
+resend.api_key = st.secrets.get("RESEND_API_KEY", os.environ.get("RESEND_API_KEY", ""))
 
 # ==========================================
-# 0. SAFE CONVERSION HELPERS
+# 0. SAFE CONVERSION & AUDIT HELPERS
 # ==========================================
 def safe_float(val, default=0.0):
     try:
@@ -26,6 +29,40 @@ def safe_int(val, default=0):
         return int(val)
     except Exception:
         return default
+
+def generate_audit_html(target_url: str, seo_score: int, load_speed: str, has_https: bool):
+    https_status = "✅ Secure (HTTPS)" if has_https else "❌ Missing HTTPS (Not Secure)"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+        <h2 style="color: #0f172a;">📊 Website Audit Report</h2>
+        <p>Hello,</p>
+        <p>We ran a performance and security check on your website: <strong>{target_url}</strong></p>
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>SEO Health Score:</strong> {seo_score}/100</p>
+            <p style="margin: 5px 0;"><strong>Server Status:</strong> Online</p>
+            <p style="margin: 5px 0;"><strong>Load Speed:</strong> {load_speed}</p>
+            <p style="margin: 5px 0;"><strong>HTTPS Security:</strong> {https_status}</p>
+        </div>
+        <p>If you're noticing vulnerabilities like missing HTTPS or want to push your SEO score to a 100/100, we can help fix these right away.</p>
+        <p>Best regards,<br>
+        <strong>JEdge Connect Team</strong><br>
+        <a href="https://johnnyedgelimited.com" style="color: #2563eb;">johnnyedgelimited.com</a></p>
+    </div>
+    """
+    return html_content
+
+def send_audit_email(client_email: str, client_name: str, audit_report_html: str):
+    try:
+        params = {
+            "from": "JEdge Connect <connect@johnnyedgelimited.com>",
+            "to": [client_email],
+            "subject": f"Website & SEO Audit Report for {client_name}",
+            "html": audit_report_html,
+        }
+        email = resend.Emails.send(params)
+        return True, email
+    except Exception as e:
+        return False, str(e)
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -365,11 +402,9 @@ else:
                                         else:
                                             st.write("**Website:** N/A")
 
-                                        # Direct Initial Audit Email Trigger Button
                                         if email != 'N/A' and website != 'N/A':
                                             if st.button(f"📧 Send Initial Audit Report to {item['title']}", key=f"send_audit_{idx}"):
                                                 with st.spinner(f"Running quick health check and dispatching audit report to {email}..."):
-                                                    # Run light audit stats for the email
                                                     audit_res = analyze_website_health(website)
                                                     html_report = generate_audit_html(
                                                         target_url=website,
