@@ -179,13 +179,14 @@ else:
     apify_token = st.sidebar.text_input("Apify API Token", type="password", value=os.environ.get("APIFY_TOKEN", ""))
     resend_key = st.sidebar.text_input("Resend API Key", type="password", value=os.environ.get("RESEND_API_KEY", ""))
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📝 Manual Outreach", 
         "🌍 Live Maps Scraper", 
         "🔍 SEO & Health Audit",
         "📊 Kanban Pipeline", 
         "⏰ Reminders & Tasks",
-        "📂 Saved History"
+        "📂 Saved History",
+        "📁 Bulk CSV Upload"
     ])
 
     with tab1:
@@ -620,3 +621,41 @@ else:
                     st.error("Failed to fetch history from Firestore.")
             except Exception as e:
                 st.error(f"Error loading history: {e}")
+
+    with tab7:
+        st.subheader("📁 Bulk CSV Lead Processing & Outreach")
+        st.markdown("Upload a CSV file containing your prospect list to process leads and queue automated audits in bulk.")
+
+        uploaded_file = st.file_uploader("Upload Prospect CSV", type=["csv"])
+        
+        if uploaded_file is not None:
+            bulk_df = pd.read_csv(uploaded_file)
+            st.markdown("### 📋 Preview Uploaded Leads")
+            st.dataframe(bulk_df.head())
+
+            required_columns = ['Company', 'Website', 'Email']
+            missing_cols = [col for col in required_columns if col not in bulk_df.columns]
+
+            if missing_cols:
+                st.warning(f"Your CSV is missing recommended columns: {missing_cols}. Please ensure your CSV has headers like Company, Website, and Email.")
+            else:
+                st.success(f"CSV successfully loaded with {len(bulk_df)} prospects!")
+
+                if st.button("🚀 Process & Save All Leads to Cloud"):
+                    with st.spinner("Processing bulk leads and saving to Firebase..."):
+                        success_count = 0
+                        for index, row in bulk_df.iterrows():
+                            lead_data = {
+                                "title": str(row.get('Company', 'N/A')),
+                                "categoryName": str(row.get('Category', 'B2B Prospect')),
+                                "totalScore": 75.0,
+                                "reviewsCount": 10,
+                                "address": str(row.get('Address', 'N/A')),
+                                "phone": str(row.get('Phone', 'N/A')),
+                                "website": str(row.get('Website', 'N/A')),
+                                "email": str(row.get('Email', 'N/A'))
+                            }
+                            save_lead_to_firestore(st.session_state["user"], lead_data, st.session_state["idToken"])
+                            success_count += 1
+                        
+                        st.success(f"Successfully processed and saved {success_count} leads to your Firestore pipeline!")
