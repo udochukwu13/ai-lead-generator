@@ -77,6 +77,10 @@ def send_custom_email(client_email: str, client_name: str, services_list: list, 
 # 1. PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
+st.image(
+    "https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png",
+    width=220
+)
     page_title="JEdge Connect | Enterprise B2B Sales Operating System",
     page_icon="⚡",
     layout="wide"
