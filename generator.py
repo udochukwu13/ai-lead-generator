@@ -52,15 +52,36 @@ def generate_followup_email(company_name, industry, api_key):
 
 def send_outreach_email(to_email, subject, body, api_key):
     resend.api_key = api_key
-    params = {
-        "from": "JEdge Connect <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": subject,
-        <img
-    src="https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png"
-    alt="JEdge Connect"
-    width="180"
->
+   
+params = {
+    "from": "JEdge Connect <onboarding@resend.dev>",
+    "to": [to_email],
+    "subject": subject,
+    "html": f"""
+    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+
+        <div style="text-align: center; padding: 20px; background-color: #f5f7fa;">
+            <img
+                src="https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png"
+                alt="JEdge Connect"
+                width="180"
+                style="max-width: 100%; height: auto;"
+            >
+        </div>
+
+        <div style="padding: 20px;">
+            {body.replace(chr(10), '<br>')}
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #ddd;">
+
+        <p style="text-align: center; font-size: 12px; color: #777;">
+            Powered by JEdge Connect<br>
+            Smart Lead Generation • Business Growth
+        </p>
+
+    </div>
+    """,
     }
     try:
         email_response = resend.Emails.send(params)
