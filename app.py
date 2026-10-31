@@ -8,8 +8,42 @@ import base64
 import pandas as pd
 from datetime import date
 import resend
+from pathlib import Path
 from generator import generate_outreach_email, generate_followup_email, send_outreach_email, analyze_website_health
+# ==========================================
+# JEDGE CONNECT BRANDING
+# ==========================================
 
+st.set_page_config(
+    page_title="JEdge Connect",
+    page_icon="🔗",
+    layout="wide"
+)
+
+logo_path = Path(__file__).parent / "jedge_logo.png"
+
+if logo_path.exists():
+    col1, col2 = st.columns([1, 4])
+
+    with col1:
+        st.image(str(logo_path), width=160)
+
+    with col2:
+        st.markdown(
+            """
+            <h1 style="color:#0B2B66; margin-top:20px;">
+                JEdge <span style="color:#FF7900;">Connect</span>
+            </h1>
+            <p style="color:#555;">
+                Smart Lead Generation • Business Growth
+            </p>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.divider()
+else:
+    st.warning("JEdge Connect logo not found. Check that jedge_logo.png is in your app folder.")
 # ==========================================
 # 0. SAFE CONVERSION & MEDIA HELPERS
 # ==========================================
@@ -73,22 +107,27 @@ def send_custom_email(client_email: str, client_name: str, services_list: list, 
     except Exception as e:
         return False, str(e)
 
+
 # ==========================================
 # 1. PAGE CONFIGURATION
 # ==========================================
+
 st.set_page_config(
-st.image(
-    "https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png",
-    width=220
-)
     page_title="JEdge Connect | Enterprise B2B Sales Operating System",
     page_icon="⚡",
     layout="wide"
 )
 
+# JEdge Connect Logo
+st.image(
+    "https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png",
+    width=220
+)
+
 # ==========================================
 # 2. FIREBASE & SESSION STORAGE SETUP
 # ==========================================
+
 try:
     FIREBASE_API_KEY = st.secrets["FIREBASE_API_KEY"]
     PROJECT_ID = st.secrets.get("FIREBASE_PROJECT_ID", "jedge-connect")
@@ -341,7 +380,7 @@ else:
 
     with tab2:
         st.subheader("🌍 Omnichannel Social & Maps Scraper")
-        st.markdown("Harvest high-intent B2B leads across **Google Maps**, **Facebook Pages**, **Instagram Profiles**, and **X (Twitter)** with custom location targeting.")
+        st.markdown("Harvest high-intent B2B leads across **Google Maps**, **Facebook Pages**, **linkedin (Profiles)**, **Instagram Profiles**, and **X (Twitter)** with custom location targeting.")
         
         scraper_source = st.selectbox("Select Target Scraping Source:", ["Google Places (Maps)", "Facebook Pages", "Instagram Profiles", "X (Twitter) Handles"])
         

@@ -1,158 +1,209 @@
+
+import os
 import requests
-import json
-import time
 import resend
+import html
 
-def generate_outreach_email(company_name, industry, rating, reviews_count, location, audit_score, api_key):
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-    
-    prompt = f"""
-    Write a short, highly personalized B2B cold outreach email to the owner or manager of {company_name}, a {industry} business in {location}.
-    Their Google rating is {rating} stars with {reviews_count} reviews, and their website SEO Health Score is {audit_score}/100.
-    Pitching JEdge Connect web optimization, automation, or software solutions to help them fix their online gaps and scale.
-    Keep it professional, friendly, and concise.
-    """
-    
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7
-    }
-    
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    res_json = response.json()
-    return res_json["choices"][0]["message"]["content"]
+# Load the Resend API key from an environment variable.
+resend.api_key = os.getenv("RESEND_API_KEY", "")
 
-def generate_followup_email(company_name, industry, api_key):
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-    
-    prompt = f"""
-    Write a short, polite, and friendly follow-up B2B email for {company_name}, a {industry} business. 
-    This is a second touchpoint after an initial cold email went unanswered. 
-    Keep it brief, value-focused, and give them a very low-friction call to action to reply or chat on WhatsApp.
-    """
-    
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7
-    }
-    
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
-    res_json = response.json()
-    return res_json["choices"][0]["message"]["content"]
 
-def send_outreach_email(to_email, subject, body, api_key):
-    resend.api_key = api_key
-   
-params = {
-    "from": "JEdge Connect <onboarding@resend.dev>",
-    "to": [to_email],
-    "subject": subject,
-    "html": f"""
-    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
 
-        <div style="text-align: center; padding: 20px; background-color: #f5f7fa;">
-            <img
-                src="https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png"
-                alt="JEdge Connect"
-                width="180"
-                style="max-width: 100%; height: auto;"
-            >
-        </div>
+def generate_outreach_email(
+    business_name="Business",
+    business_type="",
+    website="",
+    additional_context=""
+):
+    return f"""
+Subject: Helping {business_name} Grow Its Business
 
-        <div style="padding: 20px;">
-            {body.replace(chr(10), '<br>')}
-        </div>
+Hello {business_name} Team,
 
-        <hr style="border: 0; border-top: 1px solid #ddd;">
+I came across your business and wanted to introduce
+our professional digital solutions.
 
-        <p style="text-align: center; font-size: 12px; color: #777;">
-            Powered by JEdge Connect<br>
-            Smart Lead Generation • Business Growth
-        </p>
+We help businesses improve their online presence,
+customer engagement and operational efficiency.
 
-    </div>
-    """,
-    }
+Website: {website}
+
+{additional_context}
+
+Would you be available for a brief discussion?
+
+Best regards,
+JohnnyEdge Limited
+JEdge Connect
+"""
+
+
+def generate_followup_email(
+    business_name="Business",
+    previous_message="",
+    additional_context=""
+):
+    return f"""
+Subject: Following Up – {business_name}
+
+Hello {business_name} Team,
+
+I am following up on my previous message.
+
+{previous_message}
+
+{additional_context}
+
+Please let me know if you would be interested
+in discussing how we can help your business.
+
+Best regards,
+JohnnyEdge Limited
+JEdge Connect
+"""
+
+
+def send_outreach_email(
+    recipient_email,
+    subject,
+    email_body,
+    sender=None
+):
+    if not resend.api_key:
+        return False, "RESEND_API_KEY is not configured."
+
     try:
-        email_response = resend.Emails.send(params)
-        return {"success": True, "id": email_response.get("id")}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+        params = {
+            "from": sender or "JEdge Connect <connect@johnnyedgelimited.com>",
+            "to": [recipient_email],
+            "subject": subject,
+            "html": f"""
+            <div style="font-family:Arial,sans-serif;color:#333;line-height:1.6;">
+
+                <div style="text-align:center;padding:20px;background:#f5f7fa;">
+                    <img
+                        src="https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png"
+                        alt="JEdge Connect"
+                        width="180"
+                        style="max-width:100%;height:auto;"
+                    >
+                </div>
+
+                <div style="padding:20px;">
+                    {email_body.replace(chr(10), '<br>')}
+                </div>
+
+                <hr style="border:0;border-top:1px solid #ddd;">
+
+                <p style="text-align:center;font-size:12px;color:#777;">
+                    Powered by JEdge Connect<br>
+                    Smart Lead Generation • Business Growth
+                </p>
+            </div>
+            """
+        }
+
+        result = resend.Emails.send(params)
+        return True, result
+
+    except Exception as error:
+        return False, str(error)
 
 def analyze_website_health(url):
-    """Audits website SSL, Title tags, Meta descriptions, and load speed with robust headers"""
-    if not url or url == 'N/A':
-        return {"status": "No Website", "https": False, "has_title": False, "has_description": False, "load_time": "N/A", "score": 0}
-    
-    is_https = url.startswith("https") or not url.startswith("http")
-    
-    if not url.startswith("http"):
+    if not url:
+        return {"success": False, "error": "Website URL is required."}
+
+    if not url.startswith(("http://", "https://")):
         url = "https://" + url
-        
+
     try:
-        start_time = time.time()
-        # Use a realistic browser User-Agent to avoid getting blocked by corporate firewalls
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-        }
-        response = requests.get(url, headers=headers, timeout=6, allow_redirects=True)
-        load_time = round(time.time() - start_time, 2)
-        
-        # If site blocks automated scraping with 403/401 but is online
-        if response.status_code in [403, 401, 999]:
-            return {
-                "status": f"Protected (HTTP {response.status_code})",
-                "https": is_https,
-                "has_title": True,
-                "has_description": True,
-                "load_time": f"{load_time}s",
-                "score": 80
-            }
-            
-        if response.status_code == 200:
-            text_lower = response.text.lower()
-            has_title = "<title>" in text_lower
-            has_description = 'meta name="description"' in text_lower or "meta name='description'" in text_lower
-            
-            score = 40
-            if is_https: score += 20
-            if has_title: score += 20
-            if has_description: score += 20
-            
-            return {
-                "status": "Online",
-                "https": is_https,
-                "has_title": has_title,
-                "has_description": has_description,
-                "load_time": f"{load_time}s",
-                "score": score
-            }
-        else:
-            return {
-                "status": f"Error {response.status_code}",
-                "https": is_https,
-                "has_title": False,
-                "has_description": False,
-                "load_time": f"{load_time}s",
-                "score": 40
-            }
-    except Exception:
+        response = requests.get(
+            url,
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+
         return {
-            "status": "Blocked / Unreachable", 
-            "https": is_https, 
-            "has_title": False, 
-            "has_description": False, 
-            "load_time": "N/A", 
-            "score": 30
+
+            "success": True,
+            "url": url,
+            "status_code": response.status_code,
+            "https": url.startswith("https://"),
+            "load_time_seconds": response.elapsed.total_seconds(),
+            "page_title": (
+                html.escape(response.text.split("<title>")[1].split("</title>")[0])
+                if "<title>" in response.text.lower()
+                else "Title not detected"
+            )
         }
+
+    except requests.RequestException as error:
+        return {
+            "success": False,
+            "url": url,
+            "error": str(error)
+        }
+
+
+def send_audit_email(
+    client_email,
+    client_name,
+    audit_report_html
+):
+    if not resend.api_key:
+        return False, "RESEND_API_KEY is not configured."
+
+    try:
+        params = {
+            "from": "JEdge Connect <connect@johnnyedgelimited.com>",
+            "to": [client_email],
+            "subject": f"Website & SEO Audit Report for {client_name}",
+            "html": audit_report_html
+        }
+
+        result = resend.Emails.send(params)
+        return True, result
+
+    except Exception as error:
+        return False, str(error)
+
+
+def generate_audit_html(
+    target_url,
+    seo_score,
+    load_speed,
+    has_https
+):
+    https_status = (
+        "Secure (HTTPS)"
+        if has_https
+        else "Missing HTTPS (Not Secure)"
+    )
+
+    return f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;
+                margin:auto;padding:20px;color:#333;">
+
+        <h2>Website Audit Report</h2>
+
+        <p>Hello,</p>
+
+        <p>We reviewed your website:
+        <strong>{html.escape(target_url)}</strong></p>
+
+        <div style="background:#f8fafc;padding:15px;">
+            <p><strong>SEO Health Score:</strong> {seo_score}/100</p>
+            <p><strong>Server Status:</strong> Online</p>
+            <p><strong>Load Speed:</strong> {html.escape(str(load_speed))}</p>
+            <p><strong>HTTPS Security:</strong> {https_status}</p>
+        </div>
+
+        <p>Best regards,<br>
+        <strong>JEdge Connect Team</strong><br>
+        johnnyedgelimited.com</p>
+
+    </div>
+    """
+
+          
+
