@@ -56,7 +56,11 @@ def send_outreach_email(to_email, subject, body, api_key):
         "from": "JEdge Connect <onboarding@resend.dev>",
         "to": [to_email],
         "subject": subject,
-        "html": f"<div style='font-family: Arial, sans-serif;'>{body.replace(chr(10), '<br>')}</div>",
+        <img
+    src="https://raw.githubusercontent.com/udochukwu13/ai-lead-generator/main/jedge_logo.png"
+    alt="JEdge Connect"
+    width="180"
+>
     }
     try:
         email_response = resend.Emails.send(params)
